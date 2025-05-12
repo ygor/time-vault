@@ -1,0 +1,12 @@
+{
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "local-node": "hardhat node",
+    "deploy-local": "hardhat run scripts/run-local.js --network localhost",
+    "setup-local": "node scripts/setup-local-frontend.js",
+    "dev": "npm-run-all -p local-node deploy-local setup-local start"
+  }
+} 
