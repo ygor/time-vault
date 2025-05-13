@@ -1,44 +1,87 @@
-# Seldon Time Vault
+# TimeVault API
 
-A blockchain-based implementation of Hari Seldon's time vault concept from Isaac Asimov's Foundation series. This project allows users to create encrypted messages that can only be revealed after a specific amount of computational time has passed, using Verifiable Delay Functions (VDFs).
+A FastAPI-based service that leverages the [drand](https://drand.love/) beacon API to create a time-locked message vault. Messages can be encrypted and will only be accessible after a specific time has passed, verified by the drand randomness beacon.
 
-## Overview
+## Features
 
-The Seldon Time Vault is a decentralized application that enables:
+- Wallet-based authentication
+- Create and manage vaults of time-locked messages
+- Share vaults with other users
+- Support for text, image, and video content
+- Time-locking based on drand beacon rounds
+- API endpoints following OpenAPI specification
 
-1. **Time-Locked Messages**: Create messages that cannot be decrypted until a specific amount of computational work is performed
-2. **Trustless Verification**: No trusted third parties hold the keys - the system is fully decentralized
-3. **Cryptographic Guarantees**: Mathematical guarantees that messages cannot be revealed early
+## Getting Started
 
-## How It Works
+### Prerequisites
 
-### Core Concept: Verifiable Delay Functions (VDFs)
+- Python 3.8 or higher
+- pip (Python package manager)
 
-VDFs are cryptographic functions that:
-- Take a minimum amount of sequential computation time to evaluate
-- Cannot be parallelized (even with specialized hardware)
-- Produce proofs that can be verified quickly
+### Installation
 
-### Technical Implementation
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/time-vault.git
+cd time-vault
+```
 
-1. **Message Creation**:
-   - User writes a message and selects a difficulty level (time delay)
-   - Message is encrypted with a symmetric key
-   - Encrypted message is stored on-chain with VDF parameters
+2. Set up a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
 
-2. **Time-Lock Mechanism**:
-   - The VDF requires sequential computation that takes a predictable amount of time
-   - The difficulty parameter determines how long the computation will take
-   - No one can shortcut this process, even with specialized hardware
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-3. **Message Revelation**:
-   - When the time comes, anyone can compute the VDF
-   - The output of the VDF becomes the decryption key
-   - A proof is generated to verify the computation was done correctly
-   - The contract verifies the proof and stores the decryption key
+4. Create a `.env` file in the root directory with the following content:
+```
+DEBUG=True
+HOST=0.0.0.0
+PORT=8000
+JWT_SECRET=your_secure_jwt_secret
+DRAND_API_URL=https://api.drand.sh
+DRAND_CHAIN_HASH=8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce
+```
 
-4. **Message Decryption**:
-   - Once revealed, anyone can retrieve the decryption key
-   - The key is used to decrypt the original message
+### Running the API
 
-## Project Structure 
+```bash
+python main.py
+```
+
+The API will be available at http://localhost:8000/docs (Swagger UI) and http://localhost:8000/redoc (ReDoc).
+
+## How TimeVault Works
+
+1. **Time-Locking with drand**: Messages are time-locked using the drand randomness beacon, which produces a new random value at regular intervals (approximately every 30 seconds for the League of Entropy mainnet).
+
+2. **Message Encryption**: When a user creates a new message, the API calculates which future drand round will occur after the specified unlock time and uses it to encrypt the message.
+
+3. **Time Verification**: When a user tries to access a message, the API checks if the target drand round has occurred. If it has, the message is decrypted and made available.
+
+## API Endpoints
+
+The API follows the OpenAPI specification. For detailed documentation, refer to the Swagger UI at http://localhost:8000/docs.
+
+### Main Endpoints:
+
+- **Authentication**: `/v1/auth/connect-wallet`, `/v1/auth/disconnect`
+- **User Profile**: `/v1/users/profile`
+- **Vaults**: `/v1/vaults`
+- **Messages**: `/v1/vaults/{vault_id}/messages`
+- **Blockchain Status**: `/v1/blockchain/status`
+
+## Limitations and Future Improvements
+
+- The current implementation uses in-memory storage for demonstration purposes. A real implementation would use a database.
+- Media handling is simplified; a production version would integrate with a proper storage solution.
+- The wallet signature verification is a placeholder; a real implementation would use web3.py or similar for actual blockchain wallet verification.
+- Message encryption is simplified; a production version would use more sophisticated cryptography.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details. 
