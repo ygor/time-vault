@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Path, Query
 from typing import List, Optional
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.vault import Message, MessageCreation, MessageStatus, ContentType
 from app.models.common import ErrorResponse
@@ -44,7 +44,7 @@ async def get_vault_messages(
     
     # Update lock status for all messages before filtering
     messages = vault.messages.copy() if vault.messages else []
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     
     for message in messages:
         message.is_locked = message.unlock_time > now
@@ -98,7 +98,7 @@ async def add_vault_message(
         )
     
     # Ensure unlock time is in the future
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if message_data.unlock_time <= now:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -210,38 +210,43 @@ async def get_message_details(
         )
     
     # Check if the message is unlocked or needs to be unlocked
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     
     if message.unlock_time <= now and message.is_locked:
-        # Message should be unlocked
+        # First, check if the drand round for this unlock time is available
+        target_round = await drand_service.compute_round_for_time(message.unlock_time)
+        round_available = await drand_service.is_round_available(target_round)
         
-        # In a real implementation, this would decrypt from secure storage
-        if message.content_type == ContentType.TEXT:
-            # For this example, we'll simulate decryption
-            # Assume we stored the encrypted content in a secure place with the uuid as the key
-            # In a real implementation, you'd retrieve and decrypt it here
+        if round_available:
+            # Message should be unlocked
             
-            # Fake placeholder content
-            fake_content = f"This is the decrypted content for message {message_id}"
-            message.content = fake_content
-        
-        elif message.content_type in [ContentType.IMAGE, ContentType.VIDEO]:
-            # For media content, set the URL that would point to the decrypted media
-            message.media_url = f"https://example.com/media/{message.encrypted_hash}"
-        
-        message.is_locked = False
-        
-        # Update message in vault
-        for i, m in enumerate(vault.messages):
-            if m.id == message_id:
-                vault.messages[i] = message
-                break
-        
-        # Update message count stats
-        vault.message_count.locked -= 1
-        vault.message_count.unlocked += 1
-        
-        VAULTS_DB[vault_id] = vault
+            # In a real implementation, this would decrypt from secure storage
+            if message.content_type == ContentType.TEXT:
+                # For this example, we'll simulate decryption
+                # Assume we stored the encrypted content in a secure place with the uuid as the key
+                # In a real implementation, you'd retrieve and decrypt it here
+                
+                # Fake placeholder content
+                fake_content = f"This is the decrypted content for message {message_id}"
+                message.content = fake_content
+            
+            elif message.content_type in [ContentType.IMAGE, ContentType.VIDEO]:
+                # For media content, set the URL that would point to the decrypted media
+                message.media_url = f"https://example.com/media/{message.encrypted_hash}"
+            
+            message.is_locked = False
+            
+            # Update message in vault
+            for i, m in enumerate(vault.messages):
+                if m.id == message_id:
+                    vault.messages[i] = message
+                    break
+            
+            # Update message count stats
+            vault.message_count.locked -= 1
+            vault.message_count.unlocked += 1
+            
+            VAULTS_DB[vault_id] = vault
     
     return message
 
@@ -308,7 +313,7 @@ async def delete_message(
     else:
         vault.message_count.unlocked -= 1
     
-    vault.updated_at = datetime.utcnow()
+    vault.updated_at = datetime.now(timezone.utc)
     VAULTS_DB[vault_id] = vault
     
     return None 

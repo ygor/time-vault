@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from fastapi.security import HTTPBearer
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from app.models.user import WalletConnection, Token, User
-from app.core.security import create_access_token, verify_wallet_signature, get_current_user
+from app.models.user import AuthenticationRequest, AuthResponse, Token, User
+from app.core.security import create_access_token, verify_verification_code, get_current_user
 
 # This would normally be a database, but we'll use a simple dictionary for this example
 USERS_DB = {}
@@ -12,59 +12,67 @@ USERS_DB = {}
 router = APIRouter()
 
 
-@router.post("/connect-wallet", response_model=Token)
-async def connect_wallet(wallet_connection: WalletConnection):
+@router.post("/authenticate", response_model=AuthResponse)
+async def authenticate(auth_request: AuthenticationRequest):
     """
-    Connect a blockchain wallet and authenticate the user.
+    Authenticate a user with the provided credentials.
     """
-    # Check if signature is valid
-    if not verify_wallet_signature(
-        wallet_connection.address, 
-        wallet_connection.signature, 
-        "Connect to TimeVault"  # This would be a standard message
+    # Check if verification code is valid
+    if not verify_verification_code(
+        auth_request.identifier, 
+        auth_request.verification_code
     ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid wallet signature"
+            detail="Invalid verification code"
         )
     
-    # Find existing user by wallet address or create a new one
+    # Find existing user by identifier or create a new one
     user_id = None
     for uid, user in USERS_DB.items():
-        if user.wallet_address.lower() == wallet_connection.address.lower():
+        if user.identifier.lower() == auth_request.identifier.lower():
             user_id = uid
             # Update username if provided
-            if wallet_connection.username:
-                USERS_DB[uid].username = wallet_connection.username
+            if auth_request.username:
+                USERS_DB[uid].username = auth_request.username
             break
     
     if not user_id:
         # Create new user
-        now = datetime.utcnow()
+        now = datetime.now()
         user_id = str(uuid.uuid4())
         USERS_DB[user_id] = User(
             id=user_id,
-            wallet_address=wallet_connection.address,
-            username=wallet_connection.username,
+            identifier=auth_request.identifier,
+            username=auth_request.username,
             created_at=now,
             updated_at=now
         )
     
     # Create access token
+    expires_delta = timedelta(minutes=60 * 24)  # 1 day
     access_token = create_access_token(
         user_id=user_id,
-        wallet_address=wallet_connection.address
+        identifier=auth_request.identifier,
+        expires_delta=expires_delta
     )
     
-    return Token(access_token=access_token)
+    # Calculate expiration time
+    expires_at = datetime.now() + expires_delta
+    
+    return AuthResponse(
+        user=USERS_DB[user_id],
+        token=access_token,
+        expires_at=expires_at
+    )
 
 
-@router.post("/disconnect")
-async def disconnect_wallet(response: Response, current_user=Depends(get_current_user)):
+@router.post("/signout")
+async def sign_out(response: Response, current_user=Depends(get_current_user)):
     """
-    Disconnect the currently connected wallet.
+    Sign out the currently authenticated user.
     
     In a real implementation, this might invalidate the token in a token blacklist.
     For simplicity, we'll just return a success message.
     """
-    return {"message": "Wallet disconnected successfully"} 
+    return {"message": "Successfully signed out"} 

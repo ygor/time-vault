@@ -12,20 +12,20 @@ oauth2_scheme = HTTPBearer()
 
 
 def create_access_token(
-    user_id: str, wallet_address: str, expires_delta: Optional[timedelta] = None
+    user_id: str, identifier: str, expires_delta: Optional[timedelta] = None
 ) -> str:
     """
     Create a JWT access token for a user.
     """
     to_encode = {
         "user_id": user_id,
-        "wallet_address": wallet_address
+        "identifier": identifier
     }
 
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(
+        expire = datetime.now() + timedelta(
             minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES
         )
     to_encode.update({"exp": expire.timestamp()})
@@ -36,16 +36,16 @@ def create_access_token(
     return encoded_jwt
 
 
-def verify_wallet_signature(address: str, signature: str, message: str) -> bool:
+def verify_verification_code(identifier: str, verification_code: str) -> bool:
     """
-    Verify that a signature was produced by the owner of a wallet address.
+    Verify that the verification code provided is valid for the given identifier.
     
-    In a real implementation, this would use web3.py or a similar library to
-    recover the address from the signature and compare it to the provided address.
+    In a real implementation, this would check against a database of sent codes
+    or integrate with an authentication service.
     
     For simplicity, we're just returning True in this example.
     """
-    # TODO: Implement proper signature verification using web3.py
+    # TODO: Implement proper verification code validation
     return True
 
 
@@ -63,12 +63,12 @@ async def get_current_user(
         
         token_data = TokenPayload(
             user_id=payload.get("user_id"),
-            wallet_address=payload.get("wallet_address"),
+            identifier=payload.get("identifier"),
             exp=payload.get("exp")
         )
         
         # Check if token has expired
-        if token_data.exp and datetime.utcnow().timestamp() > token_data.exp:
+        if token_data.exp and datetime.now().timestamp() > token_data.exp:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token expired",
@@ -76,7 +76,7 @@ async def get_current_user(
             )
             
         return token_data
-    except (jwt.JWTError, ValueError):
+    except (jwt.JWTError, ValueError) as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",

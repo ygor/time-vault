@@ -1,28 +1,28 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field, validator, constr
+from pydantic import BaseModel, Field, field_validator, constr
 import re
 
 
-class WalletConnection(BaseModel):
-    address: constr(pattern=r"^0x[a-fA-F0-9]{40}$")
-    signature: str
+class AuthenticationRequest(BaseModel):
+    identifier: str
+    verification_code: str
     username: Optional[constr(min_length=3, max_length=30, pattern=r"^[a-zA-Z0-9_.-]+$")] = None
 
 
 class User(BaseModel):
     id: str
     username: Optional[str] = None
-    wallet_address: str
+    identifier: str
     created_at: datetime
     updated_at: datetime
 
 
 class UserCreate(BaseModel):
     username: Optional[str] = None
-    wallet_address: str
+    identifier: str
 
-    @validator("username")
+    @field_validator("username")
     def validate_username(cls, v):
         if v is not None:
             if len(v) < 3 or len(v) > 30:
@@ -35,7 +35,7 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     username: Optional[str] = None
 
-    @validator("username")
+    @field_validator("username")
     def validate_username(cls, v):
         if v is not None:
             if len(v) < 3 or len(v) > 30:
@@ -52,5 +52,11 @@ class Token(BaseModel):
 
 class TokenPayload(BaseModel):
     user_id: str
-    wallet_address: str
-    exp: Optional[int] = None 
+    identifier: str
+    exp: Optional[float] = None
+
+
+class AuthResponse(BaseModel):
+    user: User
+    token: str
+    expires_at: datetime 

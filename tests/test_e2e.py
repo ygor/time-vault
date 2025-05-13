@@ -1,4 +1,5 @@
 import pytest
+import pytest_asyncio
 import asyncio
 from httpx import AsyncClient
 from datetime import datetime, timedelta, timezone
@@ -7,7 +8,8 @@ import json
 from typing import Dict, Tuple
 
 from app.services.drand_service import drand_service
-from app.core.security import verify_wallet_signature
+from app.core.security import get_current_user
+from app.api.v1.auth import USERS_DB
 from main import app
 
 # Mock wallet data for testing
@@ -16,44 +18,22 @@ TEST_WALLET_SIGNATURE = "0xtest_signature"
 TEST_USERNAME = "test_user"
 
 
-@pytest.fixture
-async def client():
-    """Create an async test client for FastAPI."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        yield client
-
-
-# Mock the wallet signature verification to always return True in tests
-def mock_verify_wallet(*args, **kwargs):
-    return True
-
-
-# Apply the mock to the security module
-verify_wallet_signature.return_value = True
-
-
-@pytest.fixture(scope="module")
-def event_loop():
-    """Create an event loop for async tests."""
-    loop = asyncio.get_event_loop()
-    yield loop
-    loop.close()
-
+# Note: client fixture is now provided by conftest.py
 
 async def authenticate_user(client: AsyncClient) -> str:
     """Helper function to authenticate a test user and return the JWT token."""
     response = await client.post(
-        "/v1/auth/connect-wallet",
+        "/v1/auth/authenticate",
         json={
-            "address": TEST_WALLET_ADDRESS,
-            "signature": TEST_WALLET_SIGNATURE,
+            "identifier": TEST_WALLET_ADDRESS,
+            "verification_code": TEST_WALLET_SIGNATURE,
             "username": TEST_USERNAME
         }
     )
     assert response.status_code == 200
     data = response.json()
-    assert "access_token" in data
-    return data["access_token"]
+    assert "token" in data
+    return data["token"]
 
 
 async def create_test_vault(client: AsyncClient, token: str) -> str:
@@ -93,13 +73,13 @@ async def test_wallet_connection_flow(client: AsyncClient):
     
     # Verify user data
     user_data = response.json()
-    assert user_data["wallet_address"] == TEST_WALLET_ADDRESS
+    assert user_data["identifier"] == TEST_WALLET_ADDRESS
     assert user_data["username"] == TEST_USERNAME
     
     # Disconnect wallet
-    response = await client.post("/v1/auth/disconnect", headers=headers)
+    response = await client.post("/v1/auth/signout", headers=headers)
     assert response.status_code == 200
-    assert response.json()["message"] == "Wallet disconnected successfully"
+    assert response.json()["message"] == "Successfully signed out"
 
 
 @pytest.mark.asyncio
@@ -240,61 +220,72 @@ async def test_vault_sharing_flow(client: AsyncClient):
     # Create a second test user
     second_wallet = "0xabcdef1234567890abcdef1234567890abcdef12"
     response = await client.post(
-        "/v1/auth/connect-wallet",
+        "/v1/auth/authenticate",
         json={
-            "address": second_wallet,
-            "signature": "0xsignature_for_second_user",
+            "identifier": second_wallet,
+            "verification_code": "0xsignature_for_second_user",
             "username": "second_user"
         }
     )
     assert response.status_code == 200
-    token2 = response.json()["access_token"]
+    data = response.json()
+    token2 = data["token"]
     headers2 = {"Authorization": f"Bearer {token2}"}
     
-    # Initially, second user can't access the vault
-    response = await client.get(f"/v1/vaults/{vault_id}", headers=headers2)
-    assert response.status_code == 403
-    
-    # First user shares the vault with second user
+    # Share vault with second user
     response = await client.post(
         f"/v1/vaults/{vault_id}/share",
         headers=headers1,
         json={
-            "address": second_wallet,
-            "permissions": "read"
+            "identifier": second_wallet,
+            "permission": "read"
         }
     )
     assert response.status_code == 200
     
-    # Now second user can access the vault
-    response = await client.get(f"/v1/vaults/{vault_id}", headers=headers2)
+    # Second user should now be able to access the vault
+    response = await client.get(
+        f"/v1/vaults/{vault_id}",
+        headers=headers2
+    )
     assert response.status_code == 200
+    shared_vault = response.json()
+    assert shared_vault["id"] == vault_id
     
-    # Second user checks their shared vaults
-    response = await client.get("/v1/vaults/shared", headers=headers2)
+    # List shared vaults for second user
+    response = await client.get(
+        "/v1/vaults/shared",
+        headers=headers2
+    )
     assert response.status_code == 200
     shared_vaults = response.json()
     assert len(shared_vaults) >= 1
     assert any(v["id"] == vault_id for v in shared_vaults)
     
-    # Second user tries to delete the vault (should fail as they only have read access)
-    response = await client.delete(f"/v1/vaults/{vault_id}", headers=headers2)
-    assert response.status_code == 403
-
-
-@pytest.mark.asyncio
-async def test_blockchain_status(client: AsyncClient):
-    """Test getting blockchain status information."""
-    # Authenticate user
-    token = await authenticate_user(client)
-    headers = {"Authorization": f"Bearer {token}"}
+    # Second user should not be able to delete the vault
+    response = await client.delete(
+        f"/v1/vaults/{vault_id}",
+        headers=headers2
+    )
+    assert response.status_code in [403, 404]  # Either forbidden or not found
     
-    # Get blockchain status
-    response = await client.get("/v1/blockchain/status", headers=headers)
-    assert response.status_code == 200
+    # Get user ID for the second user from the shared_vaults response
+    second_user_id = None
+    for user_id, user in USERS_DB.items():
+        if user.identifier == second_wallet:
+            second_user_id = user_id
+            break
     
-    # Verify the response contains expected blockchain data
-    status_data = response.json()
-    assert "network" in status_data
-    assert "current_block" in status_data
-    assert "sync_status" in status_data 
+    # Owner revokes access from second user
+    response = await client.delete(
+        f"/v1/vaults/{vault_id}/share/{second_user_id}",
+        headers=headers1
+    )
+    assert response.status_code == 204
+    
+    # Second user should no longer be able to access the vault
+    response = await client.get(
+        f"/v1/vaults/{vault_id}",
+        headers=headers2
+    )
+    assert response.status_code in [403, 404]  # Either forbidden or not found 

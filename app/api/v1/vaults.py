@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 
 from app.models.vault import Vault, VaultCreate, VaultUpdate, MessageCountStats, ShareVaultRequest, SharePermission
+from app.models.user import User
 from app.core.security import get_current_user
 from app.api.v1.auth import USERS_DB
 
@@ -42,7 +43,7 @@ async def create_vault(
     """
     Create a new vault for the authenticated user.
     """
-    now = datetime.utcnow()
+    now = datetime.now()
     vault_id = str(uuid.uuid4())
     
     new_vault = Vault(
@@ -143,7 +144,7 @@ async def update_vault(
     if vault_update.description is not None:
         vault.description = vault_update.description
     
-    vault.updated_at = datetime.utcnow()
+    vault.updated_at = datetime.now()
     VAULTS_DB[vault_id] = vault
     
     return vault
@@ -216,10 +217,10 @@ async def share_vault(
                 target_user_id = uid
                 break
     
-    # Find by wallet address if provided
-    elif share_request.address:
+    # Find by identifier if provided
+    elif share_request.identifier:
         for uid, user in USERS_DB.items():
-            if user.wallet_address.lower() == share_request.address.lower():
+            if user.identifier.lower() == share_request.identifier.lower():
                 target_user_id = uid
                 break
     
@@ -246,7 +247,91 @@ async def share_vault(
     # Update shared_with list
     if target_user_id not in vault.shared_with:
         vault.shared_with.append(target_user_id)
-        vault.updated_at = datetime.utcnow()
+        vault.updated_at = datetime.now()
         VAULTS_DB[vault_id] = vault
     
-    return {"message": "Vault shared successfully"} 
+    return {"message": "Vault shared successfully"}
+
+
+@router.get("/{vault_id}/share", response_model=List[User])
+async def get_vault_shares(
+    vault_id: str = Path(...),
+    current_user=Depends(get_current_user)
+):
+    """
+    Get all users the vault is shared with.
+    """
+    if vault_id not in VAULTS_DB:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vault not found"
+        )
+    
+    vault = VAULTS_DB[vault_id]
+    
+    # Only the owner can view shares
+    if vault.owner_id != current_user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the owner can view shares"
+        )
+    
+    # Get users the vault is shared with
+    shared_users = []
+    
+    if vault_id in VAULT_SHARES:
+        for user_id in VAULT_SHARES[vault_id]:
+            if user_id in USERS_DB:
+                shared_users.append(USERS_DB[user_id])
+    
+    return shared_users
+
+
+@router.delete("/{vault_id}/share/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_vault_sharing(
+    vault_id: str = Path(...),
+    user_id: str = Path(...),
+    current_user=Depends(get_current_user)
+):
+    """
+    Stop sharing a vault with a specific user.
+    """
+    if vault_id not in VAULTS_DB:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vault not found"
+        )
+    
+    vault = VAULTS_DB[vault_id]
+    
+    # Only the owner can remove shares
+    if vault.owner_id != current_user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the owner can remove shares"
+        )
+    
+    # Check if the user exists
+    if user_id not in USERS_DB:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Check if the vault is shared with the user
+    if vault_id not in VAULT_SHARES or user_id not in VAULT_SHARES[vault_id]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vault is not shared with this user"
+        )
+    
+    # Remove the share
+    del VAULT_SHARES[vault_id][user_id]
+    
+    # Remove user from shared_with list
+    if user_id in vault.shared_with:
+        vault.shared_with.remove(user_id)
+        vault.updated_at = datetime.now()
+        VAULTS_DB[vault_id] = vault
+    
+    return None 

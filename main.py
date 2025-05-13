@@ -6,9 +6,9 @@ from app.api.router import router
 from app.core.config import settings
 
 app = FastAPI(
-    title=settings.PROJECT_NAME,
-    description="TimeVault API - A drand-based time-locked message vault",
-    version="1.0.0",
+    title="Seldon TimeVault API",
+    description="API for Seldon TimeVault - a time-locked message vault with secure storage and retrieval of time-locked messages.",
+    version="1.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )

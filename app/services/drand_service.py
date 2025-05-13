@@ -17,7 +17,7 @@ class DrandService:
         """
         Get information about the current drand chain.
         """
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=False) as client:
             try:
                 response = await client.get(f"{self.base_url}/info")
                 response.raise_for_status()
@@ -32,7 +32,7 @@ class DrandService:
         """
         Get the latest randomness round from drand.
         """
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=False) as client:
             try:
                 response = await client.get(f"{self.base_url}/public/{self.chain_hash}/latest")
                 response.raise_for_status()
@@ -47,7 +47,7 @@ class DrandService:
         """
         Get a specific randomness round from drand.
         """
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=False) as client:
             try:
                 response = await client.get(f"{self.base_url}/public/{self.chain_hash}/round/{round_number}")
                 response.raise_for_status()

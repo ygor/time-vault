@@ -53,7 +53,7 @@ async def update_user_profile(
     if user_update.username:
         user.username = user_update.username
     
-    user.updated_at = datetime.utcnow()
+    user.updated_at = datetime.now()
     USERS_DB[current_user.user_id] = user
     
     return user 

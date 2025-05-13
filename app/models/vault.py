@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional, Dict
-from pydantic import BaseModel, Field, validator, constr
+from pydantic import BaseModel, Field, field_validator, constr, model_validator
 from enum import Enum
 
 from app.models.common import ContentType
@@ -34,15 +34,17 @@ class MessageCreation(BaseModel):
     unlock_time: datetime
     media_content_hash: Optional[str] = None
 
-    @validator('content')
-    def validate_content(cls, v, values):
-        if values.get('content_type') == ContentType.TEXT and not v:
+    @field_validator('content')
+    def validate_content(cls, v, info):
+        content_type = info.data.get('content_type')
+        if content_type == ContentType.TEXT and not v:
             raise ValueError('Content is required for text messages')
         return v
 
-    @validator('media_content_hash')
-    def validate_media_hash(cls, v, values):
-        if values.get('content_type') in [ContentType.IMAGE, ContentType.VIDEO] and not v:
+    @field_validator('media_content_hash')
+    def validate_media_hash(cls, v, info):
+        content_type = info.data.get('content_type')
+        if content_type in [ContentType.IMAGE, ContentType.VIDEO] and not v:
             raise ValueError('Media content hash is required for image or video messages')
         return v
 
@@ -76,18 +78,24 @@ class SharePermission(str, Enum):
 
 
 class ShareVaultRequest(BaseModel):
-    address: Optional[constr(pattern=r"^0x[a-fA-F0-9]{40}$")] = None
+    identifier: Optional[str] = None
     username: Optional[constr(pattern=r"^[a-zA-Z0-9_.-]+$")] = None
     permissions: SharePermission = SharePermission.READ
 
-    @validator('username', 'address')
-    def validate_share_target(cls, v, values):
-        if 'address' not in values and 'username' not in values:
-            raise ValueError('Either address or username must be provided')
-        return v
+    @model_validator(mode='after')
+    def validate_share_target(self):
+        if self.identifier is None and self.username is None:
+            raise ValueError('Either identifier or username must be provided')
+        return self
 
 
 class MessageStatus(str, Enum):
     LOCKED = "locked"
     UNLOCKED = "unlocked"
-    ALL = "all" 
+    ALL = "all"
+
+
+class MediaUploadResponse(BaseModel):
+    media_url: str
+    mime_type: str
+    size: int 
