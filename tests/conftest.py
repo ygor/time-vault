@@ -13,7 +13,8 @@ async def client():
         yield client
 
 @pytest.fixture(autouse=True)
-def mock_wallet_verification():
+def mock_verification_code():
+    """Automatically mock the verification code check to always return True."""
     with patch('app.core.security.verify_verification_code', return_value=True):
         yield
 

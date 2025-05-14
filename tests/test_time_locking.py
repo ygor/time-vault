@@ -137,11 +137,11 @@ async def test_concurrent_users_with_shared_vault(client):
     vault_id = await create_test_vault(client, token1)
     
     # Create a second test user
-    second_wallet = "0xabcdef1234567890abcdef1234567890abcdef12"
+    second_user_identifier = "0xabcdef1234567890abcdef1234567890abcdef12"
     response = await client.post(
         "/v1/auth/authenticate",
         json={
-            "identifier": second_wallet,
+            "identifier": second_user_identifier,
             "verification_code": "0xsignature_for_second_user",
             "username": "second_user"
         }
@@ -155,7 +155,7 @@ async def test_concurrent_users_with_shared_vault(client):
         f"/v1/vaults/{vault_id}/share",
         headers=headers1,
         json={
-            "identifier": second_wallet,
+            "identifier": second_user_identifier,
             "permission": "read"
         }
     )
