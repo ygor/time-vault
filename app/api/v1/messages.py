@@ -5,7 +5,8 @@ from datetime import datetime, timezone
 
 from app.models.vault import Message, MessageCreation, MessageStatus, ContentType
 from app.models.common import ErrorResponse
-from app.core.security import get_current_user
+from app.models.auth import User
+from app.core.users import current_active_user
 from app.api.v1.vaults import VAULTS_DB, VAULT_SHARES
 from app.services.drand_service import drand_service
 
@@ -18,7 +19,7 @@ async def get_vault_messages(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     status: MessageStatus = Query(MessageStatus.ALL),
-    current_user=Depends(get_current_user)
+    user: User = Depends(current_active_user)
 ):
     """
     Get all messages in a vault with optional filtering.
@@ -33,9 +34,9 @@ async def get_vault_messages(
     vault = VAULTS_DB[vault_id]
     
     # Check if user has access to the vault
-    if vault.owner_id != current_user.user_id and (
+    if vault.owner_id != str(user.id) and (
         vault_id not in VAULT_SHARES or 
-        current_user.user_id not in VAULT_SHARES[vault_id]
+        str(user.id) not in VAULT_SHARES[vault_id]
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -67,7 +68,7 @@ async def get_vault_messages(
 async def add_vault_message(
     message_data: MessageCreation,
     vault_id: str = Path(...),
-    current_user=Depends(get_current_user)
+    user: User = Depends(current_active_user)
 ):
     """
     Add a new time-locked message to a vault.
@@ -84,11 +85,11 @@ async def add_vault_message(
     # Check if user has permission to add messages
     has_write_permission = False
     
-    if vault.owner_id == current_user.user_id:
+    if vault.owner_id == str(user.id):
         has_write_permission = True
     elif (vault_id in VAULT_SHARES and 
-          current_user.user_id in VAULT_SHARES[vault_id] and 
-          VAULT_SHARES[vault_id][current_user.user_id] == "readwrite"):
+          str(user.id) in VAULT_SHARES[vault_id] and 
+          VAULT_SHARES[vault_id][str(user.id)] == "readwrite"):
         has_write_permission = True
     
     if not has_write_permission:
@@ -117,7 +118,7 @@ async def add_vault_message(
         content_type=message_data.content_type,
         unlock_time=message_data.unlock_time,
         created_at=now,
-        created_by=current_user.user_id,
+        created_by=str(user.id),
         is_locked=True
     )
     
@@ -171,7 +172,7 @@ async def add_vault_message(
 async def get_message_details(
     message_id: str = Path(...),
     vault_id: str = Path(...),
-    current_user=Depends(get_current_user)
+    user: User = Depends(current_active_user)
 ):
     """
     Get details of a specific message, including content if unlocked.
@@ -186,9 +187,9 @@ async def get_message_details(
     vault = VAULTS_DB[vault_id]
     
     # Check if user has access to the vault
-    if vault.owner_id != current_user.user_id and (
+    if vault.owner_id != str(user.id) and (
         vault_id not in VAULT_SHARES or 
-        current_user.user_id not in VAULT_SHARES[vault_id]
+        str(user.id) not in VAULT_SHARES[vault_id]
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -255,7 +256,7 @@ async def get_message_details(
 async def delete_message(
     message_id: str = Path(...),
     vault_id: str = Path(...),
-    current_user=Depends(get_current_user)
+    user: User = Depends(current_active_user)
 ):
     """
     Delete a message from a vault.
@@ -270,13 +271,13 @@ async def delete_message(
     vault = VAULTS_DB[vault_id]
     
     # Check if user is the vault owner or message creator
-    has_delete_permission = vault.owner_id == current_user.user_id
+    has_delete_permission = vault.owner_id == str(user.id)
     
     if not has_delete_permission:
         # Check if the user is the message creator
         if vault.messages:
             for m in vault.messages:
-                if m.id == message_id and m.created_by == current_user.user_id:
+                if m.id == message_id and m.created_by == str(user.id):
                     has_delete_permission = True
                     break
     

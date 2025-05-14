@@ -58,7 +58,7 @@ These principles serve as AI guardrails and apply across all levels of software 
 - Design APIs and events to be self-descriptive and versioned.
 
 **Solution Design**
-- Use clean architecture and vertical slices.
+- Use clean architecture and vertical slice architecture.
 - Avoid tight coupling to vendors or frameworks.
 
 **Code Practices**

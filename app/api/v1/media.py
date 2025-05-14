@@ -5,7 +5,8 @@ import os
 from datetime import datetime
 
 from app.models.vault import MediaUploadResponse
-from app.core.security import get_current_user
+from app.models.auth import User
+from app.core.users import current_active_user
 
 router = APIRouter()
 
@@ -16,7 +17,7 @@ UPLOAD_DIR = "/tmp/media"
 async def upload_media(
     file: UploadFile = File(...),
     content_type: str = Form(...),
-    current_user=Depends(get_current_user)
+    user: User = Depends(current_active_user)
 ):
     """
     Upload media file (image or video)
