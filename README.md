@@ -4,7 +4,7 @@ A FastAPI-based service that leverages the [drand](https://drand.love/) beacon A
 
 ## Features
 
-- Wallet-based authentication
+- JWT-based authentication system
 - Create and manage vaults of time-locked messages
 - Share vaults with other users
 - Support for text, image, and video content
@@ -69,17 +69,17 @@ The API follows the OpenAPI specification. For detailed documentation, refer to 
 
 ### Main Endpoints:
 
-- **Authentication**: `/v1/auth/connect-wallet`, `/v1/auth/disconnect`
+- **Authentication**: `/v1/auth/authenticate`, `/v1/auth/signout`
 - **User Profile**: `/v1/users/profile`
 - **Vaults**: `/v1/vaults`
 - **Messages**: `/v1/vaults/{vault_id}/messages`
-- **Blockchain Status**: `/v1/blockchain/status`
+- **Health**: `/v1/health`
 
 ## Limitations and Future Improvements
 
 - The current implementation uses in-memory storage for demonstration purposes. A real implementation would use a database.
 - Media handling is simplified; a production version would integrate with a proper storage solution.
-- The wallet signature verification is a placeholder; a real implementation would use web3.py or similar for actual blockchain wallet verification.
+- The authentication system is a placeholder; a real implementation would have proper verification.
 - Message encryption is simplified; a production version would use more sophisticated cryptography.
 
 ## License

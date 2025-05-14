@@ -12,9 +12,9 @@ from app.core.security import get_current_user
 from app.api.v1.auth import USERS_DB
 from main import app
 
-# Mock wallet data for testing
-TEST_WALLET_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678"
-TEST_WALLET_SIGNATURE = "0xtest_signature"
+# Mock user data for testing
+TEST_USER_IDENTIFIER = "0x1234567890abcdef1234567890abcdef12345678"
+TEST_VERIFICATION_CODE = "0xtest_signature"
 TEST_USERNAME = "test_user"
 
 
@@ -25,8 +25,8 @@ async def authenticate_user(client: AsyncClient) -> str:
     response = await client.post(
         "/v1/auth/authenticate",
         json={
-            "identifier": TEST_WALLET_ADDRESS,
-            "verification_code": TEST_WALLET_SIGNATURE,
+            "identifier": TEST_USER_IDENTIFIER,
+            "verification_code": TEST_VERIFICATION_CODE,
             "username": TEST_USERNAME
         }
     )
@@ -61,8 +61,8 @@ async def get_future_unlock_time() -> datetime:
 
 
 @pytest.mark.asyncio
-async def test_wallet_connection_flow(client: AsyncClient):
-    """Test the wallet connection and authentication flow."""
+async def test_authentication_flow(client: AsyncClient):
+    """Test the user authentication flow."""
     # Authenticate user
     token = await authenticate_user(client)
     
@@ -73,10 +73,10 @@ async def test_wallet_connection_flow(client: AsyncClient):
     
     # Verify user data
     user_data = response.json()
-    assert user_data["identifier"] == TEST_WALLET_ADDRESS
+    assert user_data["identifier"] == TEST_USER_IDENTIFIER
     assert user_data["username"] == TEST_USERNAME
     
-    # Disconnect wallet
+    # Sign out
     response = await client.post("/v1/auth/signout", headers=headers)
     assert response.status_code == 200
     assert response.json()["message"] == "Successfully signed out"
@@ -218,11 +218,11 @@ async def test_vault_sharing_flow(client: AsyncClient):
     vault_id = await create_test_vault(client, token1)
     
     # Create a second test user
-    second_wallet = "0xabcdef1234567890abcdef1234567890abcdef12"
+    second_user_identifier = "0xabcdef1234567890abcdef1234567890abcdef12"
     response = await client.post(
         "/v1/auth/authenticate",
         json={
-            "identifier": second_wallet,
+            "identifier": second_user_identifier,
             "verification_code": "0xsignature_for_second_user",
             "username": "second_user"
         }
@@ -237,7 +237,7 @@ async def test_vault_sharing_flow(client: AsyncClient):
         f"/v1/vaults/{vault_id}/share",
         headers=headers1,
         json={
-            "identifier": second_wallet,
+            "identifier": second_user_identifier,
             "permission": "read"
         }
     )
@@ -272,7 +272,7 @@ async def test_vault_sharing_flow(client: AsyncClient):
     # Get user ID for the second user from the shared_vaults response
     second_user_id = None
     for user_id, user in USERS_DB.items():
-        if user.identifier == second_wallet:
+        if user.identifier == second_user_identifier:
             second_user_id = user_id
             break
     
