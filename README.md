@@ -1,15 +1,41 @@
 # TimeVault
 
-TimeVault is a secure time-locked message vault application built with ASP.NET Core. It allows users to create encrypted messages that can only be accessed after a specific time has passed.
+TimeVault is a secure, time-locked message vault application that uses drand's distributed randomness beacon for threshold encryption.
+
+## Engineering Principles
+
+The TimeVault project follows these engineering principles:
+
+### 1. Test Organization and Structure
+- Tests are organized by functionality and follow a consistent pattern
+- Each test class focuses on testing a specific component or integration point
+- Test methods are named descriptively using the `ClassUnderTest_MethodUnderTest_ExpectedBehavior` pattern
+- XML documentation comments explain the purpose of each test
+
+### 2. Mock Behavior and Setup
+- Mocks use `MockBehavior.Strict` to enforce explicit setup of all method calls
+- Mock setup is organized into dedicated private helper methods for maintainability
+- Reusable test constants are defined at the class level for consistency
+- Test data setup is isolated in dedicated helper methods
+
+### 3. Test Isolation and Reproducibility
+- Each test uses a unique database instance to prevent cross-test interference
+- Tests use helper methods to create test data consistently
+- Tests avoid using real external dependencies by mocking interfaces
+- Database contexts use `EnableSensitiveDataLogging()` for better diagnostics
+
+### 4. Assertions and Verification
+- Tests use fluent assertions for readable verification logic
+- Tests verify both state and behavior when appropriate
+- Tests focus on valuable assertions that validate correctness
+- Complex test scenarios are broken down into manageable steps
 
 ## Features
 
-- Robust user authentication with JWT tokens
-- Create and manage vaults to organize your messages
-- Share vaults with other users (with read-only or edit permissions)
-- Create time-locked messages that unlock at a specified date and time
-- Secure message encryption for sensitive content
-- RESTful API with Swagger documentation
+- Secure message storage with time-lock encryption
+- Multi-user access control with fine-grained permissions
+- Two-layer encryption using both time-lock and vault-specific keys
+- Automatic message unlocking when time conditions are met
 
 ## Technology Stack
 
@@ -49,87 +75,33 @@ Benefits of this architecture include:
 
 ### Prerequisites
 
-- .NET 8.0 SDK or later
-- SQL Server (or SQL Server LocalDB for development)
-- Visual Studio 2022, VS Code, or Rider
+- .NET 7.0 SDK or later
+- SQL Server or SQL Server Express (for local development)
 
-### Setup
+### Running the Application
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/TimeVault.git
-cd TimeVault
+1. Clone the repository
+2. Navigate to the project directory
+3. Run `dotnet restore` to restore dependencies
+4. Run `dotnet build` to build the solution
+5. Run `dotnet run --project TimeVault/src/TimeVault.Api` to start the API
+
+### Running Tests
+
+```
+dotnet test TimeVault/tests/TimeVault.Tests
 ```
 
-2. Set up the database:
-   - Update the connection string in `appsettings.json` if needed
-   - Run the Entity Framework migrations:
-```bash
-cd src/TimeVault.Api
-dotnet ef database update
-```
+## Project Structure
 
-3. Run the application:
-```bash
-dotnet run
-```
-
-The API will be available at https://localhost:5001 and the Swagger documentation at https://localhost:5001/swagger.
-
-### Default Credentials
-
-A default admin user is created when the application starts:
-
-- Username: admin
-- Email: admin@timevault.com
-- Password: Admin123!
-
-**Important**: Change these credentials in production!
-
-## Testing
-
-The project includes a comprehensive test suite covering:
-
-- Unit tests for feature handlers
-- Service tests
-- Infrastructure tests (including validation behaviors and middleware)
-
-Run the tests using:
-
-```bash
-dotnet test
-```
+- **TimeVault.Domain**: Contains domain entities and business rules
+- **TimeVault.Core**: Contains interfaces, DTOs, and service abstractions
+- **TimeVault.Infrastructure**: Contains service implementations and data access
+- **TimeVault.Api**: API controllers and configuration
+- **TimeVault.Tests**: Unit and integration tests
 
 ## API Endpoints
 
 The TimeVault API provides the following main endpoint groups:
 
-- **Auth**: `/api/auth` - Authentication endpoints for login, registration, etc.
-- **Vaults**: `/api/vaults` - Endpoints for managing vaults and vault sharing
-- **Messages**: `/api/messages` - Endpoints for creating and accessing time-locked messages
-
-For complete API documentation, refer to the Swagger UI.
-
-## How Time-Locking Works
-
-TimeVault uses symmetric encryption (AES) to encrypt message content. When a user creates a message with an unlock time:
-
-1. The content is encrypted using AES with a random key
-2. The encrypted content is stored in the database
-3. When the unlock time passes, the message can be decrypted and displayed to authorized users
-
-### Advanced Time-Locking
-
-For longer time periods, TimeVault supports decentralized randomness beacon (drand) based timelock encryption, which provides a more secure time-locking mechanism by using decentralized beacons.
-
-## Security Considerations
-
-- All user passwords are securely hashed
-- JWT tokens are used for authentication
-- Message content is encrypted at rest
-- API requires HTTPS
-- Authorization checks prevent unauthorized access to vaults and messages
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details. 
+- **Auth**: `/api/auth`

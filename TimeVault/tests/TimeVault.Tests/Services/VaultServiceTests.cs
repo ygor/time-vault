@@ -104,7 +104,9 @@ namespace TimeVault.Tests.Services
                 Name = "Owner Vault",
                 Description = "Owner Description",
                 OwnerId = _testUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey",
+                EncryptedPrivateKey = "encryptedPrivateKey"
             });
             await _dbContext.SaveChangesAsync();
 
@@ -128,7 +130,9 @@ namespace TimeVault.Tests.Services
                 Name = "Shared Vault",
                 Description = "Shared Description",
                 OwnerId = _otherUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey",
+                EncryptedPrivateKey = "encryptedPrivateKey"
             });
 
             _dbContext.VaultShares.Add(new VaultShare
@@ -162,7 +166,9 @@ namespace TimeVault.Tests.Services
                 Name = "Private Vault",
                 Description = "Private Description",
                 OwnerId = _otherUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey",
+                EncryptedPrivateKey = "encryptedPrivateKey"
             });
             await _dbContext.SaveChangesAsync();
 
@@ -183,7 +189,9 @@ namespace TimeVault.Tests.Services
                 Name = "User Vault 1",
                 Description = "Description for User Vault 1",
                 OwnerId = _testUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey1",
+                EncryptedPrivateKey = "encryptedPrivateKey1"
             });
 
             _dbContext.Vaults.Add(new Vault
@@ -192,7 +200,9 @@ namespace TimeVault.Tests.Services
                 Name = "User Vault 2",
                 Description = "Description for User Vault 2",
                 OwnerId = _testUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey2",
+                EncryptedPrivateKey = "encryptedPrivateKey2"
             });
 
             _dbContext.Vaults.Add(new Vault
@@ -201,7 +211,9 @@ namespace TimeVault.Tests.Services
                 Name = "Other User Vault",
                 Description = "Description for Other User Vault",
                 OwnerId = _otherUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey3",
+                EncryptedPrivateKey = "encryptedPrivateKey3"
             });
 
             await _dbContext.SaveChangesAsync();
@@ -228,7 +240,9 @@ namespace TimeVault.Tests.Services
                 Name = "Shared Vault 1",
                 Description = "Description for Shared Vault 1",
                 OwnerId = _otherUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey1",
+                EncryptedPrivateKey = "encryptedPrivateKey1"
             });
 
             _dbContext.Vaults.Add(new Vault
@@ -237,7 +251,9 @@ namespace TimeVault.Tests.Services
                 Name = "Shared Vault 2",
                 Description = "Description for Shared Vault 2",
                 OwnerId = _otherUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey2",
+                EncryptedPrivateKey = "encryptedPrivateKey2"
             });
 
             _dbContext.VaultShares.Add(new VaultShare
@@ -280,7 +296,9 @@ namespace TimeVault.Tests.Services
                 Name = "Original Name",
                 Description = "Original Description",
                 OwnerId = _testUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey",
+                EncryptedPrivateKey = "encryptedPrivateKey"
             });
             await _dbContext.SaveChangesAsync();
 
@@ -311,7 +329,9 @@ namespace TimeVault.Tests.Services
                 Name = "Original Shared Name",
                 Description = "Original Shared Description",
                 OwnerId = _otherUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey",
+                EncryptedPrivateKey = "encryptedPrivateKey"
             });
 
             _dbContext.VaultShares.Add(new VaultShare
@@ -352,7 +372,9 @@ namespace TimeVault.Tests.Services
                 Name = "No Edit Vault",
                 Description = "No Edit Description",
                 OwnerId = _otherUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey",
+                EncryptedPrivateKey = "encryptedPrivateKey"
             });
 
             _dbContext.VaultShares.Add(new VaultShare
@@ -388,7 +410,9 @@ namespace TimeVault.Tests.Services
                 Name = "Vault to Delete",
                 Description = "Description of vault to delete",
                 OwnerId = _testUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey",
+                EncryptedPrivateKey = "encryptedPrivateKey"
             });
             await _dbContext.SaveChangesAsync();
 
@@ -414,7 +438,9 @@ namespace TimeVault.Tests.Services
                 Name = "Protected Vault",
                 Description = "Description of protected vault",
                 OwnerId = _otherUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey",
+                EncryptedPrivateKey = "encryptedPrivateKey"
             });
 
             _dbContext.VaultShares.Add(new VaultShare
@@ -450,7 +476,9 @@ namespace TimeVault.Tests.Services
                 Name = "Vault to Share",
                 Description = "Description for Vault to share",
                 OwnerId = _testUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey",
+                EncryptedPrivateKey = "encryptedPrivateKey"
             });
             await _dbContext.SaveChangesAsync();
 
@@ -478,7 +506,9 @@ namespace TimeVault.Tests.Services
                 Name = "Non-Owner Vault",
                 Description = "Description for Non-Owner Vault",
                 OwnerId = _otherUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey",
+                EncryptedPrivateKey = "encryptedPrivateKey"
             });
             await _dbContext.SaveChangesAsync();
 
@@ -500,7 +530,9 @@ namespace TimeVault.Tests.Services
                 Name = "Shared Vault to Revoke",
                 Description = "Description for Shared Vault to revoke",
                 OwnerId = _testUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey",
+                EncryptedPrivateKey = "encryptedPrivateKey"
             });
 
             _dbContext.VaultShares.Add(new VaultShare
@@ -537,7 +569,9 @@ namespace TimeVault.Tests.Services
                 Name = "Owner Access Vault",
                 Description = "Description for Owner Access Vault",
                 OwnerId = _testUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey",
+                EncryptedPrivateKey = "encryptedPrivateKey"
             });
             await _dbContext.SaveChangesAsync();
 
@@ -559,7 +593,9 @@ namespace TimeVault.Tests.Services
                 Name = "Shared Access Vault",
                 Description = "Description for Shared Access Vault",
                 OwnerId = _otherUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey",
+                EncryptedPrivateKey = "encryptedPrivateKey"
             });
 
             _dbContext.VaultShares.Add(new VaultShare
@@ -591,7 +627,9 @@ namespace TimeVault.Tests.Services
                 Name = "No Access Vault",
                 Description = "Description for No Access Vault",
                 OwnerId = _otherUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey",
+                EncryptedPrivateKey = "encryptedPrivateKey"
             });
             await _dbContext.SaveChangesAsync();
 

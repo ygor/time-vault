@@ -66,7 +66,9 @@ namespace TimeVault.Tests.Services
                 Name = "Test Vault",
                 Description = "Test Vault Description",
                 OwnerId = _testUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                PublicKey = "testPublicKey",
+                EncryptedPrivateKey = "encryptedPrivateKey"
             });
 
             _dbContext.SaveChanges();
