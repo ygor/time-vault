@@ -467,7 +467,6 @@ namespace TimeVault.Tests.Services
             var user = new User
             {
                 Id = _ownerId,
-                Username = "testuser",
                 Email = "test@example.com",
                 PasswordHash = "hashedpassword"
             };
@@ -516,7 +515,6 @@ namespace TimeVault.Tests.Services
             var authorizedUser = new User
             {
                 Id = Guid.NewGuid(),
-                Username = "shareduser",
                 Email = "shared@example.com",
                 PasswordHash = "hashedpassword"
             };
@@ -526,7 +524,6 @@ namespace TimeVault.Tests.Services
             var vaultOwner = new User
             {
                 Id = Guid.NewGuid(),
-                Username = "vaultowner",
                 Email = "owner@example.com",
                 PasswordHash = "hashedpassword"
             };

@@ -153,8 +153,6 @@ namespace TimeVault.Tests
             _dbContext.Users.Add(new User
             {
                 Id = TEST_USER_ID,
-                Username = "testuser",
-                Id = _testUserId,
                 Email = "test@example.com",
                 PasswordHash = "hashedpassword",
                 CreatedAt = DateTime.UtcNow
