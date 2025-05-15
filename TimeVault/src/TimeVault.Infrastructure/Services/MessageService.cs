@@ -38,12 +38,15 @@ namespace TimeVault.Infrastructure.Services
             if (vault == null)
                 return null;
 
+            var now = DateTime.UtcNow;
             var message = new Message
             {
                 Id = Guid.NewGuid(),
                 Title = title,
                 VaultId = vaultId,
-                CreatedAt = DateTime.UtcNow,
+                SenderId = userId,
+                CreatedAt = now,
+                UpdatedAt = now,
                 IsRead = false
             };
 
@@ -70,8 +73,8 @@ namespace TimeVault.Infrastructure.Services
                 message.IsEncrypted = true;
                 message.IsTlockEncrypted = true;
                 message.DrandRound = drandRound;
-                message.TlockPublicKey = tlockPublicKey;
-                message.UnlockDateTime = unlockDateTime;
+                message.PublicKeyUsed = tlockPublicKey;
+                message.UnlockTime = unlockDateTime;
             }
             else
             {
@@ -102,7 +105,7 @@ namespace TimeVault.Infrastructure.Services
                 return null; // Return null explicitly instead of empty message
 
             // Handle encrypted content if unlock time has passed
-            if (message.IsEncrypted && message.UnlockDateTime.HasValue && message.UnlockDateTime <= DateTime.UtcNow)
+            if (message.IsEncrypted && message.UnlockTime.HasValue && message.UnlockTime <= DateTime.UtcNow)
             {
                 await UnlockMessageInternalAsync(message, userId);
                 await _context.SaveChangesAsync();
@@ -123,7 +126,7 @@ namespace TimeVault.Infrastructure.Services
 
             // Check for messages that need to be unlocked
             var now = DateTime.UtcNow;
-            foreach (var message in messages.Where(m => m.IsEncrypted && m.UnlockDateTime.HasValue && m.UnlockDateTime <= now))
+            foreach (var message in messages.Where(m => m.IsEncrypted && m.UnlockTime.HasValue && m.UnlockTime <= now))
             {
                 await UnlockMessageInternalAsync(message, userId);
             }
@@ -154,6 +157,8 @@ namespace TimeVault.Infrastructure.Services
             // Check if we need to encrypt the message
             var needsEncryption = unlockDateTime.HasValue && unlockDateTime > DateTime.UtcNow;
             
+            message.UpdatedAt = DateTime.UtcNow;
+            
             // If no encryption is needed or if unlock datetime is in the past
             if (!needsEncryption)
             {
@@ -164,8 +169,8 @@ namespace TimeVault.Infrastructure.Services
                 message.IsEncrypted = false;
                 message.IsTlockEncrypted = false;
                 message.DrandRound = null;
-                message.TlockPublicKey = null;
-                message.UnlockDateTime = unlockDateTime;
+                message.PublicKeyUsed = null;
+                message.UnlockTime = unlockDateTime;
                 
                 await _context.SaveChangesAsync();
                 return true;
@@ -192,8 +197,8 @@ namespace TimeVault.Infrastructure.Services
             message.IsEncrypted = true;
             message.IsTlockEncrypted = true;
             message.DrandRound = drandRound;
-            message.TlockPublicKey = tlockPublicKey;
-            message.UnlockDateTime = unlockDateTime;
+            message.PublicKeyUsed = tlockPublicKey;
+            message.UnlockTime = unlockDateTime;
 
             await _context.SaveChangesAsync();
             return true;
@@ -256,7 +261,7 @@ namespace TimeVault.Infrastructure.Services
                 return null; // Return null explicitly instead of empty message
 
             // If not encrypted or unlock time hasn't arrived yet, return as is
-            if (!message.IsEncrypted || !message.UnlockDateTime.HasValue || message.UnlockDateTime > DateTime.UtcNow)
+            if (!message.IsEncrypted || !message.UnlockTime.HasValue || message.UnlockTime > DateTime.UtcNow)
                 return message;
 
             await UnlockMessageInternalAsync(message, userId);
@@ -285,8 +290,8 @@ namespace TimeVault.Infrastructure.Services
             var unlockedMessages = await _context.Messages
                 .Where(m => allAccessibleVaultIds.Contains(m.VaultId) &&
                             m.IsEncrypted &&
-                            m.UnlockDateTime.HasValue &&
-                            m.UnlockDateTime <= now)
+                            m.UnlockTime.HasValue &&
+                            m.UnlockTime <= now)
                 .ToListAsync();
 
             // Unlock all messages

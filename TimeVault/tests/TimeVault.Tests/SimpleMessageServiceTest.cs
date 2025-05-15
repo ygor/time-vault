@@ -92,7 +92,7 @@ namespace TimeVault.Tests
             // Arrange
             var title = "Encrypted Test Message";
             var encryptedContent = "ENCRYPTED_CONTENT";
-            var unlockDateTime = DateTime.UtcNow.AddDays(1); // Future time
+            var unlockTime = DateTime.UtcNow.AddDays(1); // Future time
             
             _mockVaultService.Setup(vs => vs.HasVaultAccessAsync(TEST_VAULT_ID, TEST_USER_ID))
                 .ReturnsAsync(true);
@@ -111,7 +111,7 @@ namespace TimeVault.Tests
             var messageId = Guid.NewGuid();
             
             // Act - Create an encrypted message directly in the database
-            await CreateEncryptedTestMessageAsync(messageId, title, encryptedContent, unlockDateTime);
+            await CreateEncryptedTestMessageAsync(messageId, title, encryptedContent, unlockTime);
 
             // Get the message from the database
             var message = await _dbContext.Messages.FindAsync(messageId);
@@ -122,7 +122,7 @@ namespace TimeVault.Tests
             message.Content.Should().BeEmpty(); // Content should be empty for encrypted messages
             message.EncryptedContent.Should().Be(encryptedContent);
             message.IsEncrypted.Should().BeTrue();
-            message.UnlockDateTime.Should().Be(unlockDateTime);
+            message.UnlockTime.Should().Be(unlockTime);
             message.VaultId.Should().Be(TEST_VAULT_ID);
         }
 
@@ -155,7 +155,11 @@ namespace TimeVault.Tests
                 Id = TEST_USER_ID,
                 Email = "test@example.com",
                 PasswordHash = "hashedpassword",
-                CreatedAt = DateTime.UtcNow
+                FirstName = "",
+                LastName = "",
+                IsAdmin = false,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             });
 
             _dbContext.Vaults.Add(new Vault
@@ -165,6 +169,7 @@ namespace TimeVault.Tests
                 Description = "Test Vault Description",
                 OwnerId = TEST_USER_ID,
                 CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
                 PublicKey = TEST_PUBLIC_KEY,
                 EncryptedPrivateKey = TEST_ENCRYPTED_PRIVATE_KEY
             });
@@ -177,15 +182,20 @@ namespace TimeVault.Tests
         /// </summary>
         private async Task CreateTestMessageAsync(Guid messageId, string title, string content)
         {
+            var now = DateTime.UtcNow;
             _dbContext.Messages.Add(new Message
             {
                 Id = messageId,
                 Title = title,
                 Content = content,
                 EncryptedContent = string.Empty, // Required for non-encrypted messages
+                IV = string.Empty,
+                EncryptedKey = string.Empty,
                 IsEncrypted = false,
-                CreatedAt = DateTime.UtcNow,
-                VaultId = TEST_VAULT_ID
+                CreatedAt = now,
+                UpdatedAt = now,
+                VaultId = TEST_VAULT_ID,
+                SenderId = TEST_USER_ID
             });
             await _dbContext.SaveChangesAsync();
         }
@@ -193,21 +203,26 @@ namespace TimeVault.Tests
         /// <summary>
         /// Helper method to create an encrypted test message directly in the database
         /// </summary>
-        private async Task CreateEncryptedTestMessageAsync(Guid messageId, string title, string encryptedContent, DateTime unlockDateTime)
+        private async Task CreateEncryptedTestMessageAsync(Guid messageId, string title, string encryptedContent, DateTime unlockTime)
         {
+            var now = DateTime.UtcNow;
             _dbContext.Messages.Add(new Message
             {
                 Id = messageId,
                 Title = title,
                 Content = "", // Empty string as required by EF Core
                 EncryptedContent = encryptedContent,
+                IV = "test-iv",
+                EncryptedKey = "test-key",
                 IsEncrypted = true,
                 IsTlockEncrypted = true,
                 DrandRound = 12345L,
-                TlockPublicKey = "test-drand-key",
-                CreatedAt = DateTime.UtcNow,
-                UnlockDateTime = unlockDateTime,
-                VaultId = TEST_VAULT_ID
+                PublicKeyUsed = "test-drand-key",
+                CreatedAt = now,
+                UpdatedAt = now,
+                UnlockTime = unlockTime,
+                VaultId = TEST_VAULT_ID,
+                SenderId = TEST_USER_ID
             });
             await _dbContext.SaveChangesAsync();
         }

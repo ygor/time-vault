@@ -13,9 +13,7 @@ using Xunit;
 namespace TimeVault.Tests.Services
 {
     /// <summary>
-    /// Tests for MessageService with focus on Drand integration.
-    /// These tests verify the time-locked encryption and decryption functionality 
-    /// when working with the Drand service.
+    /// Tests for the MessageService class focusing on Drand-based time-lock encryption functionality
     /// </summary>
     public class MessageServiceWithDrandTests
     {
@@ -32,195 +30,183 @@ namespace TimeVault.Tests.Services
 
         public MessageServiceWithDrandTests()
         {
-            // Set up in-memory database with a unique name to avoid test interference
+            // Set up in-memory database
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
                 .UseInMemoryDatabase(databaseName: $"MessageServiceWithDrandTests_{Guid.NewGuid()}")
                 .EnableSensitiveDataLogging()
                 .Options;
 
             _context = new ApplicationDbContext(options);
-            _mockVaultService = new Mock<IVaultService>(MockBehavior.Strict);
-            _mockDrandService = new Mock<IDrandService>(MockBehavior.Strict);
-
-            // Setup all the required mocks
+            
+            // Set up mocks
+            _mockVaultService = new Mock<IVaultService>();
+            _mockDrandService = new Mock<IDrandService>();
+            
+            // Configure mocks for tests
             SetupVaultServiceMocks();
             SetupDrandServiceMocks();
-
+            
+            // Create service with mocks
             _messageService = new MessageService(_context, _mockVaultService.Object, _mockDrandService.Object);
-
-            // Initialize test data
+            
+            // Seed test data
             SeedTestData();
         }
 
-        /// <summary>
-        /// Verifies that message creation uses tlock encryption when an unlock time is provided.
-        /// </summary>
         [Fact]
         public async Task CreateMessageAsync_ShouldUseTlockEncryption_ForAllEncryptedMessages()
         {
             // Arrange
-            var title = "Tlock Encrypted Message";
-            var content = "This is a message encrypted with tlock";
-            var unlockTime = DateTime.UtcNow.AddMinutes(2); // Even short unlock times now use tlock
-
-            // Setup specific mock for this test
-            _mockDrandService
-                .Setup(d => d.EncryptWithTlockAndVaultKeyAsync(content, FutureRound, TestPublicKey))
-                .ReturnsAsync("tlock-vault-encrypted-content");
-
-            // Act
-            var message = await _messageService.CreateMessageAsync(_vaultId, _userId, title, content, unlockTime);
-
-            // Assert
-            message.Should().NotBeNull();
-            message.Title.Should().Be(title);
-            message.IsEncrypted.Should().BeTrue();
-            message.IsTlockEncrypted.Should().BeTrue();
-            message.DrandRound.Should().NotBeNull();
-            message.TlockPublicKey.Should().NotBeNull();
-            message.EncryptedContent.Should().NotBeEmpty();
-            message.Content.Should().BeEmpty(); // Content should be empty when encrypted
+            var title = "Time-locked Message";
+            var content = "This is a secret that will be locked with time-lock encryption";
+            var unlockTime = DateTime.UtcNow.AddHours(2); // Future time
+            var encryptedContent = "TLOCK_ENCRYPTED_CONTENT";
             
-            // Verify drand service was called correctly
-            _mockDrandService.Verify(d => d.CalculateRoundForTimeAsync(unlockTime), Times.Once);
+            // Act
+            var result = await _messageService.CreateMessageAsync(_vaultId, _userId, title, content, unlockTime);
+            
+            // Assert
+            result.Should().NotBeNull();
+            result!.Title.Should().Be(title);
+            result.Content.Should().BeEmpty(); // Content should be empty for encrypted messages
+            result.EncryptedContent.Should().Be(encryptedContent);
+            result.IsEncrypted.Should().BeTrue();
+            result.IsTlockEncrypted.Should().BeTrue();
+            result.DrandRound.Should().Be(FutureRound);
+            result.PublicKeyUsed.Should().NotBeNull();
+            result.UnlockTime.Should().Be(unlockTime);
+            
+            // Verify that Drand encryption was used
+            _mockDrandService.Verify(d => d.CalculateRoundForTimeAsync(It.Is<DateTime>(dt => dt == unlockTime)), Times.Once);
             _mockDrandService.Verify(d => d.GetPublicKeyAsync(), Times.Once);
-            _mockDrandService.Verify(d => d.EncryptWithTlockAndVaultKeyAsync(content, It.IsAny<long>(), It.IsAny<string>()), Times.Once);
+            _mockDrandService.Verify(d => d.EncryptWithTlockAndVaultKeyAsync(content, FutureRound, TestPublicKey), Times.Once);
         }
 
-        /// <summary>
-        /// Verifies that message unlocking uses tlock decryption for time-locked encrypted messages.
-        /// </summary>
         [Fact]
         public async Task UnlockMessageAsync_ShouldUseTlockDecryption_ForTlockEncryptedMessages()
         {
             // Arrange
-            var originalContent = "This is tlock encrypted content";
             var messageId = Guid.NewGuid();
-            var drandRound = 50L; // A round that's already available (1000L is current)
-            var encryptedContent = $"TLOCK_ENCRYPTED({originalContent},round={drandRound})";
-
-            await CreateEncryptedMessageInDatabase(messageId, drandRound, encryptedContent);
+            var encryptedContent = "TLOCK_ENCRYPTED_CONTENT";
+            var decryptedContent = "This is the decrypted content";
             
-            // Override mock setup for the decryption method with exact input parameters
-            _mockDrandService
-                .Setup(d => d.DecryptWithTlockAndVaultKeyAsync(encryptedContent, drandRound, TestPrivateKey))
-                .ReturnsAsync(originalContent);
+            // Create a time-locked message that's ready to be unlocked (round is available)
+            await CreateEncryptedMessageInDatabase(messageId, CurrentRound, encryptedContent);
+            
+            // Configure mock to simulate available round
+            _mockDrandService.Setup(d => d.IsRoundAvailableAsync(CurrentRound))
+                .ReturnsAsync(true);
+                
+            _mockDrandService.Setup(d => d.DecryptWithTlockAndVaultKeyAsync(
+                    encryptedContent, CurrentRound, TestPrivateKey))
+                .ReturnsAsync(decryptedContent);
             
             // Act
-            var unlockedMessage = await _messageService.UnlockMessageAsync(messageId, _userId);
+            var result = await _messageService.UnlockMessageAsync(messageId, _userId);
             
             // Assert
-            unlockedMessage.Should().NotBeNull();
-            unlockedMessage.IsEncrypted.Should().BeFalse();
-            unlockedMessage.IsTlockEncrypted.Should().BeFalse();
-            unlockedMessage.Content.Should().Be(originalContent);
-            unlockedMessage.EncryptedContent.Should().BeEmpty();
+            result.Should().NotBeNull();
+            result!.Content.Should().Be(decryptedContent);
+            result.IsEncrypted.Should().BeFalse();
             
-            // Verify drand service was called for decryption
-            _mockDrandService.Verify(d => d.IsRoundAvailableAsync(drandRound), Times.Once);
+            // Verify that Drand decryption was used
+            _mockDrandService.Verify(d => d.IsRoundAvailableAsync(CurrentRound), Times.Once);
+            _mockDrandService.Verify(d => d.DecryptWithTlockAndVaultKeyAsync(
+                encryptedContent, CurrentRound, TestPrivateKey), Times.Once);
         }
-        
-        /// <summary>
-        /// Verifies that message updating uses tlock encryption when changing to a time-locked message.
-        /// </summary>
+
         [Fact]
         public async Task UpdateMessageAsync_ShouldUseTlockEncryption_ForAllEncryptedMessages()
         {
             // Arrange
             var messageId = Guid.NewGuid();
+            
+            // Create an unencrypted message first
             await CreateUnencryptedMessageInDatabase(messageId);
             
-            // Now update it with an unlock time (which will trigger encryption)
-            var newTitle = "Updated Tlock Message";
-            var newContent = "Updated content with tlock encryption";
-            var newUnlockTime = DateTime.UtcNow.AddMinutes(2); // Even short unlock times now use tlock
-            var encryptedContent = "tlock-encrypted-content";
+            var newTitle = "Updated Time-locked Message";
+            var newContent = "This message will be encrypted with time-lock encryption";
+            var newUnlockTime = DateTime.UtcNow.AddHours(3); // Future time
+            var encryptedContent = "TLOCK_ENCRYPTED_CONTENT_UPDATED";
             
-            // Mock setup specifically for this test
-            _mockDrandService
-                .Setup(d => d.CalculateRoundForTimeAsync(It.IsAny<DateTime>()))
+            // Configure mocks
+            _mockDrandService.Setup(d => d.CalculateRoundForTimeAsync(newUnlockTime))
                 .ReturnsAsync(FutureRound);
-            _mockDrandService
-                .Setup(d => d.GetPublicKeyAsync())
-                .ReturnsAsync("test-public-key");
-            _mockDrandService
-                .Setup(d => d.EncryptWithTlockAndVaultKeyAsync(newContent, FutureRound, TestPublicKey))
+                
+            _mockDrandService.Setup(d => d.GetPublicKeyAsync())
+                .ReturnsAsync("drand-public-key");
+                
+            _mockDrandService.Setup(d => d.EncryptWithTlockAndVaultKeyAsync(
+                    newContent, FutureRound, TestPublicKey))
                 .ReturnsAsync(encryptedContent);
             
-            // Act - update with a future unlock time to trigger encryption
+            // Act
             var result = await _messageService.UpdateMessageAsync(messageId, _userId, newTitle, newContent, newUnlockTime);
             
             // Assert
             result.Should().BeTrue();
             
-            // Get the updated message from DB
+            // Verify the message was updated in the database
             var updatedMessage = await _context.Messages.FindAsync(messageId);
             updatedMessage.Should().NotBeNull();
-            
-            // Since we're updating an unencrypted message with a future unlock time,
-            // it should be encrypted with tlock now
             updatedMessage!.Title.Should().Be(newTitle);
+            updatedMessage.Content.Should().BeEmpty(); // Content should be empty for encrypted messages
+            updatedMessage.EncryptedContent.Should().Be(encryptedContent);
             updatedMessage.IsEncrypted.Should().BeTrue();
             updatedMessage.IsTlockEncrypted.Should().BeTrue();
             updatedMessage.DrandRound.Should().Be(FutureRound);
-            updatedMessage.TlockPublicKey.Should().Be("test-public-key");
-            updatedMessage.EncryptedContent.Should().Be(encryptedContent);
-            updatedMessage.Content.Should().BeEmpty();
+            updatedMessage.PublicKeyUsed.Should().NotBeNull();
+            updatedMessage.UnlockTime.Should().Be(newUnlockTime);
             
-            // Verify drand service was called
-            _mockDrandService.Verify(d => d.CalculateRoundForTimeAsync(It.IsAny<DateTime>()), Times.Once);
+            // Verify that Drand encryption was used
+            _mockDrandService.Verify(d => d.CalculateRoundForTimeAsync(newUnlockTime), Times.Once);
             _mockDrandService.Verify(d => d.GetPublicKeyAsync(), Times.Once);
-            _mockDrandService.Verify(d => d.EncryptWithTlockAndVaultKeyAsync(newContent, FutureRound, TestPublicKey), Times.Once);
+            _mockDrandService.Verify(d => d.EncryptWithTlockAndVaultKeyAsync(
+                newContent, FutureRound, TestPublicKey), Times.Once);
         }
-
+        
         #region Test Helpers
-
-        /// <summary>
-        /// Sets up all required mock methods for the VaultService
-        /// </summary>
+        
         private void SetupVaultServiceMocks()
         {
+            // Mock vault access check
             _mockVaultService.Setup(v => v.HasVaultAccessAsync(_vaultId, _userId))
                 .ReturnsAsync(true);
+                
+            // Mock vault edit permission check
             _mockVaultService.Setup(v => v.CanEditVaultAsync(_vaultId, _userId))
                 .ReturnsAsync(true);
+                
+            // Mock private key retrieval
             _mockVaultService.Setup(v => v.GetVaultPrivateKeyAsync(_vaultId, _userId))
                 .ReturnsAsync(TestPrivateKey);
         }
-
-        /// <summary>
-        /// Sets up all required mock methods for the DrandService
-        /// </summary>
+        
         private void SetupDrandServiceMocks()
         {
+            // Mock current round
             _mockDrandService.Setup(d => d.GetCurrentRoundAsync())
                 .ReturnsAsync(CurrentRound);
-            
+                
+            // Mock round calculation
             _mockDrandService.Setup(d => d.CalculateRoundForTimeAsync(It.IsAny<DateTime>()))
                 .ReturnsAsync(FutureRound);
-            
+                
+            // Mock public key retrieval
             _mockDrandService.Setup(d => d.GetPublicKeyAsync())
-                .ReturnsAsync("test-public-key");
-            
-            _mockDrandService.Setup(d => d.EncryptWithTlockAsync(It.IsAny<string>(), It.IsAny<long>()))
-                .ReturnsAsync("tlock-encrypted-content");
-
-            _mockDrandService.Setup(d => d.EncryptWithTlockAndVaultKeyAsync(It.IsAny<string>(), It.IsAny<long>(), It.IsAny<string>()))
-                .ReturnsAsync("tlock-and-vault-encrypted-content");
-            
-            _mockDrandService.Setup(d => d.DecryptWithTlockAsync(It.IsAny<string>(), It.IsAny<long>()))
-                .ReturnsAsync("decrypted-content");
-
-            _mockDrandService.Setup(d => d.DecryptWithTlockAndVaultKeyAsync(It.IsAny<string>(), It.IsAny<long>(), It.IsAny<string>()))
-                .ReturnsAsync("decrypted-content");
-            
-            _mockDrandService.Setup(d => d.IsRoundAvailableAsync(It.IsAny<long>()))
-                .ReturnsAsync(true);
+                .ReturnsAsync("drand-public-key");
+                
+            // Mock encryption
+            _mockDrandService.Setup(d => d.EncryptWithTlockAndVaultKeyAsync(
+                    It.IsAny<string>(), It.IsAny<long>(), It.IsAny<string>()))
+                .ReturnsAsync("TLOCK_ENCRYPTED_CONTENT");
+                
+            // Mock decryption
+            _mockDrandService.Setup(d => d.DecryptWithTlockAndVaultKeyAsync(
+                    It.IsAny<string>(), It.IsAny<long>(), It.IsAny<string>()))
+                .ReturnsAsync("DECRYPTED_CONTENT");
         }
-
-        /// <summary>
-        /// Initializes the database with test data
-        /// </summary>
+        
         private void SeedTestData()
         {
             // Add test user
@@ -228,73 +214,79 @@ namespace TimeVault.Tests.Services
             {
                 Id = _userId,
                 Email = "test@example.com",
-                PasswordHash = "hashedpassword",
-                CreatedAt = DateTime.UtcNow
+                PasswordHash = "hash",
+                FirstName = "",
+                LastName = "",
+                IsAdmin = false,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             });
-
+            
             // Add test vault
             _context.Vaults.Add(new Vault
             {
                 Id = _vaultId,
                 Name = "Test Vault",
-                Description = "Test Description",
+                Description = "Test vault for time-lock encryption",
                 OwnerId = _userId,
-                CreatedAt = DateTime.UtcNow,
                 PublicKey = TestPublicKey,
-                EncryptedPrivateKey = "encryptedPrivateKey"
+                EncryptedPrivateKey = "encrypted-private-key",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             });
-
+            
             _context.SaveChanges();
         }
-
-        /// <summary>
-        /// Helper method to create an encrypted message in the database for testing
-        /// </summary>
+        
         private async Task CreateEncryptedMessageInDatabase(Guid messageId, long drandRound, string encryptedContent)
         {
+            var now = DateTime.UtcNow;
             var message = new Message
             {
                 Id = messageId,
-                Title = "Tlock Message",
-                Content = "", // Empty when encrypted
+                Title = "Encrypted Test Message",
+                Content = "", // Empty for encrypted messages
                 EncryptedContent = encryptedContent,
+                IV = "test-iv",
+                EncryptedKey = "test-key",
                 IsEncrypted = true,
                 IsTlockEncrypted = true,
                 DrandRound = drandRound,
-                TlockPublicKey = "test-public-key",
-                CreatedAt = DateTime.UtcNow.AddHours(-1),
-                UnlockDateTime = DateTime.UtcNow.AddMinutes(-10), // Already passed
-                VaultId = _vaultId
+                PublicKeyUsed = "test-public-key",
+                VaultId = _vaultId,
+                SenderId = _userId,
+                CreatedAt = now,
+                UpdatedAt = now,
+                UnlockTime = now.AddHours(-1) // Already passed unlock time
             };
             
-            await _context.Messages.AddAsync(message);
+            _context.Messages.Add(message);
             await _context.SaveChangesAsync();
         }
-
-        /// <summary>
-        /// Helper method to create an unencrypted message in the database for testing
-        /// </summary>
+        
         private async Task CreateUnencryptedMessageInDatabase(Guid messageId)
         {
+            var now = DateTime.UtcNow;
             var message = new Message
             {
                 Id = messageId,
-                Title = "Original Message",
-                Content = "Original content without encryption",
-                EncryptedContent = "", 
-                IsEncrypted = false, // Message starts unencrypted
+                Title = "Unencrypted Test Message",
+                Content = "This is an unencrypted test message",
+                EncryptedContent = "", // Empty for unencrypted messages
+                IV = "",
+                EncryptedKey = "",
+                IsEncrypted = false,
                 IsTlockEncrypted = false,
-                DrandRound = null,
-                TlockPublicKey = null,
-                CreatedAt = DateTime.UtcNow,
-                UnlockDateTime = null,
-                VaultId = _vaultId
+                VaultId = _vaultId,
+                SenderId = _userId,
+                CreatedAt = now,
+                UpdatedAt = now
             };
             
-            await _context.Messages.AddAsync(message);
+            _context.Messages.Add(message);
             await _context.SaveChangesAsync();
         }
-
+        
         #endregion
     }
 } 

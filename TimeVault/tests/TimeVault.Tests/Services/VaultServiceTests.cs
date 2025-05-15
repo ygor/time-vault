@@ -138,7 +138,8 @@ namespace TimeVault.Tests.Services
                 Id = Guid.NewGuid(),
                 VaultId = vaultId,
                 UserId = _testUserId,
-                SharedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
                 CanEdit = false
             });
 
@@ -259,7 +260,8 @@ namespace TimeVault.Tests.Services
                 Id = Guid.NewGuid(),
                 VaultId = sharedVault1Id,
                 UserId = _testUserId,
-                SharedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
                 CanEdit = false
             });
 
@@ -268,7 +270,8 @@ namespace TimeVault.Tests.Services
                 Id = Guid.NewGuid(),
                 VaultId = sharedVault2Id,
                 UserId = _testUserId,
-                SharedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
                 CanEdit = true
             });
 
@@ -337,7 +340,8 @@ namespace TimeVault.Tests.Services
                 Id = Guid.NewGuid(),
                 VaultId = vaultId,
                 UserId = _testUserId,
-                SharedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
                 CanEdit = true
             });
 
@@ -380,7 +384,8 @@ namespace TimeVault.Tests.Services
                 Id = Guid.NewGuid(),
                 VaultId = vaultId,
                 UserId = _testUserId,
-                SharedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
                 CanEdit = false // Read-only permission
             });
 
@@ -446,7 +451,8 @@ namespace TimeVault.Tests.Services
                 Id = Guid.NewGuid(),
                 VaultId = vaultId,
                 UserId = _testUserId,
-                SharedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
                 CanEdit = true // Even with edit permission, only owner can delete
             });
 
@@ -538,7 +544,8 @@ namespace TimeVault.Tests.Services
                 Id = Guid.NewGuid(),
                 VaultId = vaultId,
                 UserId = _otherUserId,
-                SharedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
                 CanEdit = true
             });
 
@@ -601,7 +608,8 @@ namespace TimeVault.Tests.Services
                 Id = Guid.NewGuid(),
                 VaultId = vaultId,
                 UserId = _testUserId,
-                SharedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
                 CanEdit = false
             });
 

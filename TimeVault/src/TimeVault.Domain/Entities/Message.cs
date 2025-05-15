@@ -8,13 +8,16 @@ namespace TimeVault.Domain.Entities
         public string Title { get; set; }
         public string Content { get; set; }
         public string EncryptedContent { get; set; }
+        public string IV { get; set; }
+        public string EncryptedKey { get; set; }
         public bool IsEncrypted { get; set; }
         public DateTime CreatedAt { get; set; }
-        public DateTime? UnlockDateTime { get; set; }
+        public DateTime UpdatedAt { get; set; }
+        public DateTime? UnlockTime { get; set; }
         
         // Drand specific properties
         public long? DrandRound { get; set; }
-        public string? TlockPublicKey { get; set; }
+        public string PublicKeyUsed { get; set; }
         public bool IsTlockEncrypted { get; set; }
         
         // Status properties
@@ -23,8 +26,10 @@ namespace TimeVault.Domain.Entities
         
         // Foreign keys
         public Guid VaultId { get; set; }
+        public Guid SenderId { get; set; }
         
         // Navigation properties
         public Vault Vault { get; set; }
+        public User Sender { get; set; }
     }
 } 

@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Npgsql.EntityFrameworkCore.PostgreSQL;
+using System.IO;
 using System.Reflection;
 using System.Text;
 using TimeVault.Api.Infrastructure.Behaviors;
@@ -22,7 +24,7 @@ builder.Services.AddControllers();
 
 // Add Database
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Add MediatR for vertical slice architecture
 builder.Services.AddMediatR(cfg => 
@@ -156,7 +158,28 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<ApplicationDbContext>();
-        context.Database.Migrate();
+
+        // For PostgreSQL, use our custom initialization instead of migrations
+        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+        var scriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "PostgresSchema.sql");
+
+        // If the script exists in the infrastructure project, copy it to the output directory
+        var infrastructureScriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "../../TimeVault.Infrastructure/Data/PostgresSchema.sql");
+        if (File.Exists(infrastructureScriptPath))
+        {
+            File.Copy(infrastructureScriptPath, scriptPath, true);
+        }
+
+        if (File.Exists(scriptPath))
+        {
+            // Initialize PostgreSQL database with our script
+            ApplicationDbContext.InitializePostgresDatabase(connectionString, scriptPath);
+        }
+        else
+        {
+            // Fallback to regular migrations if script is not found
+            context.Database.Migrate();
+        }
 
         // Seed default admin user
         var authService = services.GetRequiredService<IAuthService>();
@@ -165,7 +188,7 @@ using (var scope = app.Services.CreateScope())
     catch (Exception ex)
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while seeding the database.");
+        logger.LogError(ex, "An error occurred while initializing the database.");
     }
 }
 
@@ -179,10 +202,8 @@ public static class SeedData
     public static async Task InitializeAsync(IAuthService authService)
     {
         // Create admin user if it doesn't exist
-        var (success, _, _, error) = await authService.RegisterAsync(
+        await authService.CreateAdminUserIfNotExists(
             "admin@timevault.com",
             "Admin123!");
-
-        // We don't care if this fails because the user already exists
     }
 }

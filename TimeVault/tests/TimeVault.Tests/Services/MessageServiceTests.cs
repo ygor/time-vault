@@ -93,7 +93,7 @@ namespace TimeVault.Tests.Services
                 EncryptedContent = string.Empty, // Required for non-encrypted messages
                 IsEncrypted = false,
                 CreatedAt = DateTime.UtcNow,
-                UnlockDateTime = unlockDateTime,
+                UnlockTime = unlockDateTime,
                 IsRead = false,
                 ReadAt = null,
                 VaultId = _testVaultId
@@ -133,12 +133,15 @@ namespace TimeVault.Tests.Services
                 Title = title,
                 Content = "", // Empty string as required by EF Core
                 EncryptedContent = encryptedContent,
+                IV = "test-iv",
+                EncryptedKey = "test-key",
                 IsEncrypted = true,
                 CreatedAt = DateTime.UtcNow,
-                UnlockDateTime = unlockDateTime,
+                UnlockTime = unlockDateTime,
                 IsRead = false,
                 ReadAt = null,
-                VaultId = _testVaultId
+                VaultId = _testVaultId,
+                SenderId = _testUserId
             };
 
             _dbContext.Messages.Add(message);
@@ -153,7 +156,7 @@ namespace TimeVault.Tests.Services
             result.Content.Should().BeEmpty(); // Content should be empty when encrypted
             result.EncryptedContent.Should().NotBeNull(); // Should have encrypted content
             result.IsEncrypted.Should().BeTrue();
-            result.UnlockDateTime.Should().Be(unlockDateTime);
+            result.UnlockTime.Should().Be(unlockDateTime);
             result.VaultId.Should().Be(_testVaultId);
         }
 
@@ -252,11 +255,15 @@ namespace TimeVault.Tests.Services
                 Title = "Unlocked Message",
                 Content = "", // Use empty string instead of null for Content
                 EncryptedContent = encryptedContent, // Add encrypted content
+                IV = "test-iv",
+                EncryptedKey = "test-key",
                 IsEncrypted = true,
                 CreatedAt = DateTime.UtcNow.AddDays(-1),
-                UnlockDateTime = DateTime.UtcNow.AddHours(-1), // Time has passed
+                UpdatedAt = DateTime.UtcNow.AddDays(-1),
+                UnlockTime = DateTime.UtcNow.AddHours(-1), // Time has passed
                 IsRead = false,
-                VaultId = _testVaultId
+                VaultId = _testVaultId,
+                SenderId = _testUserId
             });
             await _dbContext.SaveChangesAsync();
 
@@ -566,11 +573,15 @@ namespace TimeVault.Tests.Services
                 Title = "Message to Unlock",
                 Content = "", // Use empty string instead of null for Content
                 EncryptedContent = "ENCRYPTED_CONTENT", // Add encrypted content with non-null value
+                IV = "test-iv",
+                EncryptedKey = "test-key",
                 IsEncrypted = true,
                 CreatedAt = DateTime.UtcNow.AddDays(-1),
-                UnlockDateTime = DateTime.UtcNow.AddHours(-1), // Time has passed
+                UpdatedAt = DateTime.UtcNow.AddDays(-1),
+                UnlockTime = DateTime.UtcNow.AddHours(-1), // Time has passed
                 IsRead = false,
-                VaultId = _testVaultId
+                VaultId = _testVaultId,
+                SenderId = _testUserId
             };
             
             _dbContext.Messages.Add(message);
@@ -609,11 +620,14 @@ namespace TimeVault.Tests.Services
                 Title = "Locked Message",
                 Content = "", // Use empty string instead of null for Content
                 EncryptedContent = "ENCRYPTED_CONTENT", // Add encrypted content with non-null value
+                IV = "test-iv",
+                EncryptedKey = "test-key",
                 IsEncrypted = true,
                 CreatedAt = DateTime.UtcNow,
-                UnlockDateTime = DateTime.UtcNow.AddDays(1), // Future time
+                UnlockTime = DateTime.UtcNow.AddDays(1), // Future time
                 IsRead = false,
-                VaultId = _testVaultId
+                VaultId = _testVaultId,
+                SenderId = _testUserId
             });
             await _dbContext.SaveChangesAsync();
 
@@ -652,9 +666,11 @@ namespace TimeVault.Tests.Services
                 Title = "Previously Locked Message",
                 Content = "", // Use empty string instead of null
                 EncryptedContent = "ENCRYPTED_CONTENT", // Add encrypted content
+                IV = "test-iv",
+                EncryptedKey = "test-key",
                 IsEncrypted = true,
                 CreatedAt = DateTime.UtcNow.AddDays(-2),
-                UnlockDateTime = DateTime.UtcNow.AddHours(-1), // Time has passed
+                UnlockTime = DateTime.UtcNow.AddHours(-1), // Time has passed
                 IsRead = false,
                 VaultId = _testVaultId
             };
@@ -665,9 +681,11 @@ namespace TimeVault.Tests.Services
                 Title = "Still Locked Message",
                 Content = "", // Use empty string instead of null
                 EncryptedContent = "STILL_ENCRYPTED", // Add encrypted content
+                IV = "test-iv",
+                EncryptedKey = "test-key",
                 IsEncrypted = true,
                 CreatedAt = DateTime.UtcNow,
-                UnlockDateTime = DateTime.UtcNow.AddDays(1), // Future time
+                UnlockTime = DateTime.UtcNow.AddDays(1), // Future time
                 IsRead = false,
                 VaultId = _testVaultId
             };

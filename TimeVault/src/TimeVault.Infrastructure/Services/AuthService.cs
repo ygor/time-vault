@@ -38,6 +38,7 @@ namespace TimeVault.Infrastructure.Services
 
             // Update last login
             user.LastLogin = DateTime.UtcNow;
+            user.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
             var token = GenerateJwtToken(user);
@@ -50,13 +51,18 @@ namespace TimeVault.Infrastructure.Services
             if (await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower()))
                 return (false, string.Empty, null, "Email already registered");
 
+            var now = DateTime.UtcNow;
             var user = new User
             {
                 Id = Guid.NewGuid(),
                 Email = email,
                 PasswordHash = HashPassword(password),
-                CreatedAt = DateTime.UtcNow,
-                LastLogin = DateTime.UtcNow
+                FirstName = "",
+                LastName = "",
+                IsAdmin = false,
+                CreatedAt = now,
+                UpdatedAt = now,
+                LastLogin = now
             };
 
             await _context.Users.AddAsync(user);
@@ -114,6 +120,7 @@ namespace TimeVault.Infrastructure.Services
                 return false;
 
             user.PasswordHash = HashPassword(newPassword);
+            user.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
             return true;
@@ -130,7 +137,8 @@ namespace TimeVault.Infrastructure.Services
                 Subject = new ClaimsIdentity(new[]
                 {
                     new Claim("id", user.Id.ToString()),
-                    new Claim(ClaimTypes.Email, user.Email)
+                    new Claim(ClaimTypes.Email, user.Email),
+                    new Claim("isAdmin", user.IsAdmin.ToString().ToLower())
                 }),
                 Expires = DateTime.UtcNow.AddDays(7),
                 SigningCredentials = new SigningCredentials(
@@ -174,6 +182,31 @@ namespace TimeVault.Infrastructure.Services
                         return false;
                 }
             }
+
+            return true;
+        }
+
+        public async Task<bool> CreateAdminUserIfNotExists(string email, string password)
+        {
+            if (await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower()))
+                return false;  // User already exists
+
+            var now = DateTime.UtcNow;
+            var user = new User
+            {
+                Id = Guid.NewGuid(),
+                Email = email,
+                PasswordHash = HashPassword(password),
+                FirstName = "Admin",
+                LastName = "User",
+                IsAdmin = true,
+                CreatedAt = now,
+                UpdatedAt = now,
+                LastLogin = now
+            };
+
+            await _context.Users.AddAsync(user);
+            await _context.SaveChangesAsync();
 
             return true;
         }

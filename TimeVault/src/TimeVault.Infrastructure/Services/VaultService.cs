@@ -32,12 +32,14 @@ namespace TimeVault.Infrastructure.Services
             // Encrypt the private key with the user's key
             var encryptedPrivateKey = await _keyVaultService.EncryptVaultPrivateKeyAsync(privateKey, userId);
             
+            var now = DateTime.UtcNow;
             var vault = new Vault
             {
                 Id = Guid.NewGuid(),
                 Name = name,
                 Description = description,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = now,
+                UpdatedAt = now,
                 OwnerId = userId,
                 PublicKey = publicKey,
                 EncryptedPrivateKey = encryptedPrivateKey
@@ -103,6 +105,7 @@ namespace TimeVault.Infrastructure.Services
 
             vault.Name = name;
             vault.Description = description;
+            vault.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
             return true;
@@ -142,10 +145,13 @@ namespace TimeVault.Infrastructure.Services
             var existingShare = await _context.VaultShares
                 .FirstOrDefaultAsync(vs => vs.VaultId == vaultId && vs.UserId == targetUserId);
 
+            var now = DateTime.UtcNow;
+            
             if (existingShare != null)
             {
                 // Update existing share permissions
                 existingShare.CanEdit = canEdit;
+                existingShare.UpdatedAt = now;
                 await _context.SaveChangesAsync();
                 return true;
             }
@@ -156,7 +162,8 @@ namespace TimeVault.Infrastructure.Services
                 Id = Guid.NewGuid(),
                 VaultId = vaultId,
                 UserId = targetUserId,
-                SharedAt = DateTime.UtcNow,
+                CreatedAt = now,
+                UpdatedAt = now,
                 CanEdit = canEdit
             };
 

@@ -9,6 +9,7 @@ namespace TimeVault.Domain.Entities
         public string Name { get; set; }
         public string Description { get; set; }
         public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
         
         // Vault-specific cryptographic keys
         public string PublicKey { get; set; }
@@ -20,5 +21,6 @@ namespace TimeVault.Domain.Entities
         // Navigation properties
         public User Owner { get; set; }
         public ICollection<Message> Messages { get; set; } = new List<Message>();
+        public ICollection<VaultShare> SharedWith { get; set; } = new List<VaultShare>();
     }
 } 

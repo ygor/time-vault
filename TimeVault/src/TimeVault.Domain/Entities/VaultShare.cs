@@ -15,7 +15,8 @@ namespace TimeVault.Domain.Entities
         public Vault Vault { get; set; }
         
         // Additional properties
-        public DateTime SharedAt { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
         public bool CanEdit { get; set; }
     }
 } 
