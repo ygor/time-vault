@@ -1,0 +1,57 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{F512F0DF-CAE9-41CF-9D45-B11B0C406B47}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TimeVault.Api", "src\TimeVault.Api\TimeVault.Api.csproj", "{158A8D15-5E29-4457-B6BF-98439F786AD9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TimeVault.Core", "src\TimeVault.Core\TimeVault.Core.csproj", "{6400F342-EBA3-482B-A990-EA0312E2644B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TimeVault.Infrastructure", "src\TimeVault.Infrastructure\TimeVault.Infrastructure.csproj", "{86819BFE-B43D-43CE-87C9-6A129A61055E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TimeVault.Domain", "src\TimeVault.Domain\TimeVault.Domain.csproj", "{0C449D64-8B8B-4D07-BC30-A7F644BE70EC}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{09152B6E-0E3B-498A-8F42-78617AE717BD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TimeVault.Tests", "tests\TimeVault.Tests\TimeVault.Tests.csproj", "{A01CDD4C-8F18-4343-84D7-94D025FB8130}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{158A8D15-5E29-4457-B6BF-98439F786AD9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{158A8D15-5E29-4457-B6BF-98439F786AD9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{158A8D15-5E29-4457-B6BF-98439F786AD9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{158A8D15-5E29-4457-B6BF-98439F786AD9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6400F342-EBA3-482B-A990-EA0312E2644B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6400F342-EBA3-482B-A990-EA0312E2644B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6400F342-EBA3-482B-A990-EA0312E2644B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6400F342-EBA3-482B-A990-EA0312E2644B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{86819BFE-B43D-43CE-87C9-6A129A61055E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{86819BFE-B43D-43CE-87C9-6A129A61055E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{86819BFE-B43D-43CE-87C9-6A129A61055E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{86819BFE-B43D-43CE-87C9-6A129A61055E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0C449D64-8B8B-4D07-BC30-A7F644BE70EC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0C449D64-8B8B-4D07-BC30-A7F644BE70EC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0C449D64-8B8B-4D07-BC30-A7F644BE70EC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0C449D64-8B8B-4D07-BC30-A7F644BE70EC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A01CDD4C-8F18-4343-84D7-94D025FB8130}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A01CDD4C-8F18-4343-84D7-94D025FB8130}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A01CDD4C-8F18-4343-84D7-94D025FB8130}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A01CDD4C-8F18-4343-84D7-94D025FB8130}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{158A8D15-5E29-4457-B6BF-98439F786AD9} = {F512F0DF-CAE9-41CF-9D45-B11B0C406B47}
+		{6400F342-EBA3-482B-A990-EA0312E2644B} = {F512F0DF-CAE9-41CF-9D45-B11B0C406B47}
+		{86819BFE-B43D-43CE-87C9-6A129A61055E} = {F512F0DF-CAE9-41CF-9D45-B11B0C406B47}
+		{0C449D64-8B8B-4D07-BC30-A7F644BE70EC} = {F512F0DF-CAE9-41CF-9D45-B11B0C406B47}
+		{A01CDD4C-8F18-4343-84D7-94D025FB8130} = {09152B6E-0E3B-498A-8F42-78617AE717BD}
+	EndGlobalSection
+EndGlobal

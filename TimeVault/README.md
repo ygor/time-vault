@@ -18,32 +18,15 @@ TimeVault is a secure time-locked message vault application built with ASP.NET C
 - **Authentication:** JWT token-based authentication
 - **API Documentation:** Swagger / OpenAPI
 - **Encryption:** AES for message content encryption
-- **Architecture:** Vertical Slice Architecture with CQRS pattern
-- **Testing:** xUnit, FluentAssertions, Moq
 
 ## Project Structure
 
-The solution follows a Vertical Slice Architecture pattern:
+The solution follows a Clean Architecture pattern:
 
-- **TimeVault.Api**: API controllers, features (commands/queries), and infrastructure
-- **TimeVault.Core**: Core interfaces and services
+- **TimeVault.Api**: API controllers and presentation layer
+- **TimeVault.Core**: Application business logic and interfaces
 - **TimeVault.Domain**: Domain entities and business models
-- **TimeVault.Infrastructure**: Data access and service implementations
-
-### Vertical Slice Architecture
-
-The TimeVault API has been refactored to use Vertical Slice Architecture, which organizes code around features rather than technical concerns. Each feature contains its own:
-
-- Controller endpoint
-- Command/Query handlers (using MediatR)
-- Validation logic (using FluentValidation)
-- DTOs and mapping
-
-Benefits of this architecture include:
-- Better separation of concerns
-- Improved maintainability
-- Feature isolation
-- Easier testability
+- **TimeVault.Infrastructure**: Data access and external service implementations
 
 ## Getting Started
 
@@ -86,20 +69,6 @@ A default admin user is created when the application starts:
 
 **Important**: Change these credentials in production!
 
-## Testing
-
-The project includes a comprehensive test suite covering:
-
-- Unit tests for feature handlers
-- Service tests
-- Infrastructure tests (including validation behaviors and middleware)
-
-Run the tests using:
-
-```bash
-dotnet test
-```
-
 ## API Endpoints
 
 The TimeVault API provides the following main endpoint groups:
@@ -117,10 +86,6 @@ TimeVault uses symmetric encryption (AES) to encrypt message content. When a use
 1. The content is encrypted using AES with a random key
 2. The encrypted content is stored in the database
 3. When the unlock time passes, the message can be decrypted and displayed to authorized users
-
-### Advanced Time-Locking
-
-For longer time periods, TimeVault supports decentralized randomness beacon (drand) based timelock encryption, which provides a more secure time-locking mechanism by using decentralized beacons.
 
 ## Security Considerations
 
