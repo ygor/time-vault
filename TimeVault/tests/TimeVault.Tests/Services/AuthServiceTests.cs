@@ -46,25 +46,22 @@ namespace TimeVault.Tests.Services
             // Arrange
             using var context = CreateDbContext();
             var service = new AuthService(context, _configuration);
-            var username = "testuser";
             var email = "test@example.com";
             var password = "Password123!";
 
             // Act
-            var result = await service.RegisterAsync(username, email, password);
+            var result = await service.RegisterAsync(email, password);
 
             // Assert
             result.Success.Should().BeTrue();
             result.User.Should().NotBeNull();
-            result.User.Username.Should().Be(username);
             result.User.Email.Should().Be(email);
             result.User.PasswordHash.Should().NotBeNullOrEmpty();
             result.User.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(10));
 
             var savedUser = await context.Users.FindAsync(result.User.Id);
             savedUser.Should().NotBeNull();
-            savedUser!.Username.Should().Be(username);
-            savedUser.Email.Should().Be(email);
+            savedUser!.Email.Should().Be(email);
             savedUser.PasswordHash.Should().NotBeNullOrEmpty();
         }
 
@@ -74,40 +71,37 @@ namespace TimeVault.Tests.Services
             // Arrange
             using var context = CreateDbContext();
             var service = new AuthService(context, _configuration);
-            var username = "testuser";
             var email = "test@example.com";
             var password = "Password123!";
 
             // Register a user first
-            await service.RegisterAsync(username, email, password);
+            await service.RegisterAsync(email, password);
 
-            // Act
-            var result = await service.LoginAsync(username, password);
+            // Act - login with email
+            var result = await service.LoginAsync(email, password);
 
             // Assert
             result.Success.Should().BeTrue();
             result.Error.Should().BeEmpty();
             result.Token.Should().NotBeNullOrEmpty();
             result.User.Should().NotBeNull();
-            result.User.Username.Should().Be(username);
             result.User.Email.Should().Be(email);
         }
 
         [Fact]
-        public async Task LoginAsync_ShouldReturnFailure_WhenUsernameIsIncorrect()
+        public async Task LoginAsync_ShouldReturnFailure_WhenEmailIsIncorrect()
         {
             // Arrange
             using var context = CreateDbContext();
             var service = new AuthService(context, _configuration);
-            var username = "testuser";
             var email = "test@example.com";
             var password = "Password123!";
 
             // Register a user first
-            await service.RegisterAsync(username, email, password);
+            await service.RegisterAsync(email, password);
 
             // Act
-            var result = await service.LoginAsync("wrongusername", password);
+            var result = await service.LoginAsync("wrong@example.com", password);
 
             // Assert
             result.Success.Should().BeFalse();
@@ -121,15 +115,14 @@ namespace TimeVault.Tests.Services
             // Arrange
             using var context = CreateDbContext();
             var service = new AuthService(context, _configuration);
-            var username = "testuser";
             var email = "test@example.com";
             var password = "Password123!";
 
             // Register a user first
-            await service.RegisterAsync(username, email, password);
+            await service.RegisterAsync(email, password);
 
             // Act
-            var result = await service.LoginAsync(username, "wrongpassword");
+            var result = await service.LoginAsync(email, "wrongpassword");
 
             // Assert
             result.Success.Should().BeFalse();
@@ -143,13 +136,12 @@ namespace TimeVault.Tests.Services
             // Arrange
             using var context = CreateDbContext();
             var service = new AuthService(context, _configuration);
-            var username = "testuser";
             var email = "test@example.com";
             var currentPassword = "Password123!";
             var newPassword = "NewPassword123!";
 
             // Register a user first
-            var registerResult = await service.RegisterAsync(username, email, currentPassword);
+            var registerResult = await service.RegisterAsync(email, currentPassword);
             var userId = registerResult.User.Id;
 
             // Act
@@ -159,7 +151,7 @@ namespace TimeVault.Tests.Services
             result.Should().BeTrue();
 
             // Verify we can login with the new password
-            var loginResult = await service.LoginAsync(username, newPassword);
+            var loginResult = await service.LoginAsync(email, newPassword);
             loginResult.Success.Should().BeTrue();
         }
     }

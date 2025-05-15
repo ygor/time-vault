@@ -25,7 +25,7 @@ namespace TimeVault.Api.Features.Auth
 
             var result = await _mediator.Send(new Login.Command 
             { 
-                EmailOrUsername = request.EmailOrUsername, 
+                Email = request.Email, 
                 Password = request.Password 
             });
 
@@ -43,7 +43,6 @@ namespace TimeVault.Api.Features.Auth
 
             var result = await _mediator.Send(new Register.Command 
             { 
-                Username = request.Username, 
                 Email = request.Email, 
                 Password = request.Password 
             });
@@ -103,13 +102,12 @@ namespace TimeVault.Api.Features.Auth
 
     public class LoginRequest
     {
-        public string EmailOrUsername { get; set; }
+        public string Email { get; set; }
         public string Password { get; set; }
     }
 
     public class RegisterRequest
     {
-        public string Username { get; set; }
         public string Email { get; set; }
         public string Password { get; set; }
     }

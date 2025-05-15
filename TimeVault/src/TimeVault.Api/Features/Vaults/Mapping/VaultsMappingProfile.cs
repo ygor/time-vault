@@ -10,8 +10,8 @@ namespace TimeVault.Api.Features.Vaults.Mapping
         {
             // Map Vault entity to VaultDto
             CreateMap<Vault, VaultDto>()
-                .ForMember(dest => dest.OwnerUsername, opt => opt.MapFrom(src => 
-                    src.Owner != null ? src.Owner.Username : string.Empty))
+                .ForMember(dest => dest.OwnerEmail, opt => opt.MapFrom(src => 
+                    src.Owner != null ? src.Owner.Email : string.Empty))
                 .ForMember(dest => dest.MessageCount, opt => opt.MapFrom(src => 
                     src.Messages != null ? src.Messages.Count : 0))
                 .ForMember(dest => dest.UnreadMessageCount, opt => opt.MapFrom(src => 
@@ -22,7 +22,6 @@ namespace TimeVault.Api.Features.Vaults.Mapping
 
             // Map VaultShare entity to VaultShareDto
             CreateMap<VaultShare, VaultShareDto>()
-                .ForMember(dest => dest.Username, opt => opt.MapFrom(src => src.User.Username))
                 .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.User.Email));
         }
     }

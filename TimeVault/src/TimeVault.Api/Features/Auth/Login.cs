@@ -13,7 +13,7 @@ namespace TimeVault.Api.Features.Auth
     {
         public class Command : IRequest<AuthResult>
         {
-            public string EmailOrUsername { get; set; }
+            public string Email { get; set; }
             public string Password { get; set; }
         }
 
@@ -21,7 +21,7 @@ namespace TimeVault.Api.Features.Auth
         {
             public Validator()
             {
-                RuleFor(x => x.EmailOrUsername).NotEmpty();
+                RuleFor(x => x.Email).NotEmpty().EmailAddress();
                 RuleFor(x => x.Password).NotEmpty();
             }
         }
@@ -39,7 +39,7 @@ namespace TimeVault.Api.Features.Auth
 
             public async Task<AuthResult> Handle(Command request, CancellationToken cancellationToken)
             {
-                var result = await _authService.LoginAsync(request.EmailOrUsername, request.Password);
+                var result = await _authService.LoginAsync(request.Email, request.Password);
 
                 if (!result.Success)
                     return new AuthResult { Success = false, Error = result.Error };

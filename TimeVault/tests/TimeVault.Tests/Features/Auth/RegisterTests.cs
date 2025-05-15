@@ -42,7 +42,6 @@ namespace TimeVault.Tests.Features.Auth
             // Arrange
             var command = new Register.Command
             {
-                Username = "testuser",
                 Email = "test@example.com",
                 Password = "Password123!"
             };
@@ -50,13 +49,11 @@ namespace TimeVault.Tests.Features.Auth
             var user = new User
             {
                 Id = Guid.NewGuid(),
-                Username = command.Username,
                 Email = command.Email,
                 CreatedAt = DateTime.UtcNow
             };
 
             _mockAuthService.Setup(x => x.RegisterAsync(
-                    command.Username,
                     command.Email,
                     command.Password))
                 .ReturnsAsync((true, "token123", user, string.Empty));
@@ -68,7 +65,6 @@ namespace TimeVault.Tests.Features.Auth
             result.Success.Should().BeTrue();
             result.Token.Should().Be("token123");
             result.User.Should().NotBeNull();
-            result.User.Username.Should().Be(command.Username);
             result.User.Email.Should().Be(command.Email);
         }
 
@@ -78,7 +74,6 @@ namespace TimeVault.Tests.Features.Auth
             // Arrange
             var command = new Register.Command
             {
-                Username = "existinguser",
                 Email = "existing@example.com",
                 Password = "Password123!"
             };
@@ -86,7 +81,6 @@ namespace TimeVault.Tests.Features.Auth
             // Suppress nullability warnings for Moq setup methods
 #pragma warning disable CS8620 // Argument cannot be used for parameter due to differences in nullability of reference types.
             _mockAuthService.Setup(x => x.RegisterAsync(
-                    command.Username,
                     command.Email,
                     command.Password))
                 .ReturnsAsync((false, string.Empty, (User?)null, "Email already registered"));
