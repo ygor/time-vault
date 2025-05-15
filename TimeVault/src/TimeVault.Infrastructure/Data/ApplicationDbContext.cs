@@ -28,6 +28,14 @@ namespace TimeVault.Infrastructure.Data
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.Email)
                 .IsUnique();
+                
+            modelBuilder.Entity<User>()
+                .Property(u => u.FirstName)
+                .IsRequired(false);
+                
+            modelBuilder.Entity<User>()
+                .Property(u => u.LastName)
+                .IsRequired(false);
 
             // Configure the Vault entity
             modelBuilder.Entity<Vault>()

@@ -73,7 +73,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key is missing in configuration")))
         };
     });
 
@@ -170,7 +170,7 @@ using (var scope = app.Services.CreateScope())
             File.Copy(infrastructureScriptPath, scriptPath, true);
         }
 
-        if (File.Exists(scriptPath))
+        if (File.Exists(scriptPath) && !string.IsNullOrEmpty(connectionString))
         {
             // Initialize PostgreSQL database with our script
             ApplicationDbContext.InitializePostgresDatabase(connectionString, scriptPath);

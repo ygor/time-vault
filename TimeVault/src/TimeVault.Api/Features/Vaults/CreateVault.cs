@@ -13,8 +13,8 @@ namespace TimeVault.Api.Features.Vaults
         public class Command : IRequest<VaultDto>
         {
             public Guid UserId { get; set; }
-            public string Name { get; set; }
-            public string Description { get; set; }
+            public string Name { get; set; } = string.Empty;
+            public string Description { get; set; } = string.Empty;
         }
 
         public class Validator : AbstractValidator<Command>
@@ -22,8 +22,8 @@ namespace TimeVault.Api.Features.Vaults
             public Validator()
             {
                 RuleFor(x => x.UserId).NotEmpty().WithMessage("User ID is required");
-                RuleFor(x => x.Name).NotEmpty().MaximumLength(100).WithMessage("Name is required and must be less than 100 characters");
-                RuleFor(x => x.Description).MaximumLength(500).WithMessage("Description must be less than 500 characters");
+                RuleFor(x => x.Name).NotEmpty().WithMessage("Name is required");
+                RuleFor(x => x.Description).MaximumLength(500).WithMessage("Description cannot exceed 500 characters");
             }
         }
 

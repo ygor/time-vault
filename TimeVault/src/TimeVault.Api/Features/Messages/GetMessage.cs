@@ -10,7 +10,7 @@ namespace TimeVault.Api.Features.Messages
 {
     public static class GetMessage
     {
-        public class Query : IRequest<MessageDto>
+        public class Query : IRequest<MessageDto?>
         {
             public Guid MessageId { get; set; }
             public Guid UserId { get; set; }
@@ -25,7 +25,7 @@ namespace TimeVault.Api.Features.Messages
             }
         }
 
-        public class Handler : IRequestHandler<Query, MessageDto>
+        public class Handler : IRequestHandler<Query, MessageDto?>
         {
             private readonly IMessageService _messageService;
             private readonly IMapper _mapper;
@@ -36,7 +36,7 @@ namespace TimeVault.Api.Features.Messages
                 _mapper = mapper;
             }
 
-            public async Task<MessageDto> Handle(Query request, CancellationToken cancellationToken)
+            public async Task<MessageDto?> Handle(Query request, CancellationToken cancellationToken)
             {
                 var message = await _messageService.GetMessageByIdAsync(request.MessageId, request.UserId);
                 

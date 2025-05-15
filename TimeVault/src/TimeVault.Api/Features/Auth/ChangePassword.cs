@@ -1,5 +1,6 @@
-using MediatR;
 using System;
+using FluentValidation;
+using MediatR;
 using System.Threading;
 using System.Threading.Tasks;
 using TimeVault.Core.Services.Interfaces;
@@ -11,8 +12,8 @@ namespace TimeVault.Api.Features.Auth
         public class Command : IRequest<ChangePasswordResult>
         {
             public Guid UserId { get; set; }
-            public string CurrentPassword { get; set; }
-            public string NewPassword { get; set; }
+            public string CurrentPassword { get; set; } = string.Empty;
+            public string NewPassword { get; set; } = string.Empty;
         }
 
         public class Handler : IRequestHandler<Command, ChangePasswordResult>
@@ -26,11 +27,24 @@ namespace TimeVault.Api.Features.Auth
 
             public async Task<ChangePasswordResult> Handle(Command request, CancellationToken cancellationToken)
             {
-                var result = await _authService.ChangePasswordAsync(request.UserId, request.CurrentPassword, request.NewPassword);
+                var success = await _authService.ChangePasswordAsync(
+                    request.UserId, 
+                    request.CurrentPassword, 
+                    request.NewPassword);
+
+                if (success)
+                {
+                    return new ChangePasswordResult
+                    {
+                        Success = true,
+                        Message = "Password changed successfully"
+                    };
+                }
 
                 return new ChangePasswordResult
                 {
-                    Success = result
+                    Success = false,
+                    Error = "Failed to change password. Current password may be incorrect."
                 };
             }
         }

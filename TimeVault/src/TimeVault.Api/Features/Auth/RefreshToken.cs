@@ -1,3 +1,4 @@
+using FluentValidation;
 using MediatR;
 using System;
 using System.Threading;
@@ -10,7 +11,7 @@ namespace TimeVault.Api.Features.Auth
     {
         public class Command : IRequest<RefreshTokenResult>
         {
-            public string Token { get; set; }
+            public string Token { get; set; } = string.Empty;
         }
 
         public class Handler : IRequestHandler<Command, RefreshTokenResult>
@@ -24,13 +25,13 @@ namespace TimeVault.Api.Features.Auth
 
             public async Task<RefreshTokenResult> Handle(Command request, CancellationToken cancellationToken)
             {
-                var result = await _authService.RefreshTokenAsync(request.Token);
+                var (success, token, error) = await _authService.RefreshTokenAsync(request.Token);
 
                 return new RefreshTokenResult
                 {
-                    Success = result.Success,
-                    Token = result.Token,
-                    Error = result.Error
+                    Success = success,
+                    Token = token,
+                    Error = error
                 };
             }
         }
@@ -38,8 +39,8 @@ namespace TimeVault.Api.Features.Auth
         public class RefreshTokenResult
         {
             public bool Success { get; set; }
-            public string Token { get; set; }
-            public string Error { get; set; }
+            public string Token { get; set; } = string.Empty;
+            public string Error { get; set; } = string.Empty;
         }
     }
 } 

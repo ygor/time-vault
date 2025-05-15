@@ -11,8 +11,8 @@ namespace TimeVault.Domain.Entities
         public Guid VaultId { get; set; }
         
         // Navigation properties
-        public User User { get; set; }
-        public Vault Vault { get; set; }
+        public User? User { get; set; }
+        public Vault? Vault { get; set; }
         
         // Additional properties
         public DateTime CreatedAt { get; set; }

@@ -1,10 +1,9 @@
+using AutoMapper;
 using FluentValidation;
 using MediatR;
-using Microsoft.AspNetCore.Mvc;
-using System;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using AutoMapper;
 using TimeVault.Core.Services.Interfaces;
 
 namespace TimeVault.Api.Features.Auth
@@ -13,16 +12,20 @@ namespace TimeVault.Api.Features.Auth
     {
         public class Command : IRequest<AuthResult>
         {
-            public string Email { get; set; }
-            public string Password { get; set; }
+            public string Email { get; set; } = string.Empty;
+            public string Password { get; set; } = string.Empty;
         }
 
         public class Validator : AbstractValidator<Command>
         {
             public Validator()
             {
-                RuleFor(x => x.Email).NotEmpty().EmailAddress();
-                RuleFor(x => x.Password).NotEmpty();
+                RuleFor(x => x.Email)
+                    .NotEmpty().WithMessage("Email is required")
+                    .EmailAddress().WithMessage("Invalid email format");
+                
+                RuleFor(x => x.Password)
+                    .NotEmpty().WithMessage("Password is required");
             }
         }
 
@@ -39,20 +42,17 @@ namespace TimeVault.Api.Features.Auth
 
             public async Task<AuthResult> Handle(Command request, CancellationToken cancellationToken)
             {
-                var result = await _authService.LoginAsync(request.Email, request.Password);
+                var (success, token, user, error) = await _authService.LoginAsync(request.Email, request.Password);
 
-                if (!result.Success)
-                    return new AuthResult { Success = false, Error = result.Error };
-
-                var userDto = _mapper.Map<UserDto>(result.User);
-
-                return new AuthResult
+                var result = new AuthResult
                 {
-                    Success = true,
-                    Token = result.Token,
-                    User = userDto,
-                    Expiration = DateTime.UtcNow.AddDays(7) // Match JWT expiry in service
+                    Success = success,
+                    Token = token,
+                    User = user != null ? _mapper.Map<UserDto>(user) : null,
+                    Error = error
                 };
+
+                return result;
             }
         }
     }

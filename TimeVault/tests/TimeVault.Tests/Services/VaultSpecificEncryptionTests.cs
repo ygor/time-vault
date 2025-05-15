@@ -468,7 +468,11 @@ namespace TimeVault.Tests.Services
             {
                 Id = _ownerId,
                 Email = "test@example.com",
-                PasswordHash = "hashedpassword"
+                PasswordHash = "hashedpassword",
+                FirstName = "Test",
+                LastName = "User",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
             await _context.Users.AddAsync(user);
             
@@ -516,7 +520,11 @@ namespace TimeVault.Tests.Services
             {
                 Id = Guid.NewGuid(),
                 Email = "shared@example.com",
-                PasswordHash = "hashedpassword"
+                PasswordHash = "hashedpassword",
+                FirstName = "Shared",
+                LastName = "User",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
             await _context.Users.AddAsync(authorizedUser);
             
@@ -525,7 +533,11 @@ namespace TimeVault.Tests.Services
             {
                 Id = Guid.NewGuid(),
                 Email = "owner@example.com",
-                PasswordHash = "hashedpassword"
+                PasswordHash = "hashedpassword",
+                FirstName = "Owner",
+                LastName = "User",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
             await _context.Users.AddAsync(vaultOwner);
             

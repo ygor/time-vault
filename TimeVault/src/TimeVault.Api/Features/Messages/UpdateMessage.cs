@@ -1,3 +1,4 @@
+using FluentValidation;
 using MediatR;
 using System;
 using System.Threading;
@@ -12,8 +13,8 @@ namespace TimeVault.Api.Features.Messages
         {
             public Guid MessageId { get; set; }
             public Guid UserId { get; set; }
-            public string Title { get; set; }
-            public string Content { get; set; }
+            public string Title { get; set; } = string.Empty;
+            public string Content { get; set; } = string.Empty;
             public DateTime? UnlockDateTime { get; set; }
         }
 

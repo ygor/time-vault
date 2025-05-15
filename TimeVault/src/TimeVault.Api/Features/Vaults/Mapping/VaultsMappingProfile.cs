@@ -22,7 +22,8 @@ namespace TimeVault.Api.Features.Vaults.Mapping
 
             // Map VaultShare entity to VaultShareDto
             CreateMap<VaultShare, VaultShareDto>()
-                .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.User.Email));
+                .ForMember(dest => dest.Email, opt => opt.MapFrom(src => 
+                    src.User != null ? src.User.Email : string.Empty));
         }
     }
 } 

@@ -27,7 +27,7 @@ namespace TimeVault.Infrastructure.Services
             _drandService = drandService;
         }
 
-        public async Task<Message> CreateMessageAsync(Guid vaultId, Guid userId, string title, string content, DateTime? unlockDateTime)
+        public async Task<Message?> CreateMessageAsync(Guid vaultId, Guid userId, string title, string content, DateTime? unlockDateTime)
         {
             // Check if user has access to the vault
             if (!await _vaultService.HasVaultAccessAsync(vaultId, userId))
@@ -91,7 +91,7 @@ namespace TimeVault.Infrastructure.Services
             return message;
         }
 
-        public async Task<Message> GetMessageByIdAsync(Guid messageId, Guid userId)
+        public async Task<Message?> GetMessageByIdAsync(Guid messageId, Guid userId)
         {
             var message = await _context.Messages
                 .Include(m => m.Vault)
@@ -179,7 +179,7 @@ namespace TimeVault.Infrastructure.Services
             // Encryption is needed
             
             // Calculate the drand round for the unlock time
-            var drandRound = await _drandService.CalculateRoundForTimeAsync(unlockDateTime.Value);
+            var drandRound = await _drandService.CalculateRoundForTimeAsync(unlockDateTime.GetValueOrDefault());
                 
             // Get the public key for tlock encryption
             var tlockPublicKey = await _drandService.GetPublicKeyAsync();
@@ -247,7 +247,7 @@ namespace TimeVault.Infrastructure.Services
             return true;
         }
 
-        public async Task<Message> UnlockMessageAsync(Guid messageId, Guid userId)
+        public async Task<Message?> UnlockMessageAsync(Guid messageId, Guid userId)
         {
             var message = await _context.Messages
                 .Include(m => m.Vault)
@@ -325,14 +325,20 @@ namespace TimeVault.Infrastructure.Services
                             // Get the vault's private key for decryption
                             var vaultPrivateKey = await _vaultService.GetVaultPrivateKeyAsync(message.VaultId, userId);
                             
+                            // Make sure DrandRound.Value is not null (should already be checked by HasValue)
+                            var drandRound = message.DrandRound.GetValueOrDefault();
+                            
                             // Decrypt using tlock and the vault's private key
                             message.Content = await _drandService.DecryptWithTlockAndVaultKeyAsync(
                                 message.EncryptedContent, 
-                                message.DrandRound.Value,
+                                drandRound,
                                 vaultPrivateKey);
                         }
-                        catch (Exception ex)
+                        catch (Exception exception)
                         {
+                            // Log the vault decryption error before trying legacy decryption
+                            System.Diagnostics.Debug.WriteLine($"Vault-specific decryption failed: {exception.Message}. Trying legacy decryption.");
+                            
                             // If vault-specific decryption fails, try legacy decryption
                             message.Content = await _drandService.DecryptWithTlockAsync(
                                 message.EncryptedContent, 
@@ -353,10 +359,13 @@ namespace TimeVault.Infrastructure.Services
                     message.IsEncrypted = false;
                 }
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
+                // Log the exception in a production environment
+                System.Diagnostics.Debug.WriteLine($"Exception while unlocking message: {exception.Message}");
+                
                 await Task.Run(() => {
-                    message.Content = $"[Error: Could not decrypt message: {ex.Message}]";
+                    message.Content = $"[Error: Could not decrypt message: {exception.Message}]";
                     message.EncryptedContent = ""; // Use empty string instead of null
                     message.IsEncrypted = false;
                     message.IsTlockEncrypted = false;

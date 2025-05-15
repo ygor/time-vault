@@ -23,7 +23,6 @@ namespace TimeVault.Infrastructure.Services
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IKeyVaultService _keyVaultService;
         private readonly string _drandUrl = "https://api.drand.sh";
-        private readonly string _drandChainHash = "8990e7a9aaed2ffed73dbd7092123d6f289930540d7651336225dc172e51b2ce"; // League of Entropy chain hash
         
         // Constructor using IHttpClientFactory from DI
         public DrandService(IHttpClientFactory httpClientFactory, IKeyVaultService keyVaultService)
@@ -48,7 +47,13 @@ namespace TimeVault.Infrastructure.Services
             {
                 var content = await response.Content.ReadAsStringAsync();
                 var roundInfo = JsonSerializer.Deserialize<DrandRoundResponse>(content);
-                return roundInfo;
+                return roundInfo ?? new DrandRoundResponse
+                {
+                    Round = round,
+                    Randomness = string.Empty,
+                    Signature = string.Empty,
+                    PreviousSignature = 0
+                };
             }
             
             return new DrandRoundResponse
@@ -65,7 +70,7 @@ namespace TimeVault.Infrastructure.Services
             var client = _httpClientFactory.CreateClient("DrandClient");
             var info = await client.GetFromJsonAsync<DrandInfo>($"{_drandUrl}/info");
             
-            if (info == null)
+            if (info == null || info.Public == null)
                 return 0;
                 
             // Calculate the time difference between now and unlock time in seconds

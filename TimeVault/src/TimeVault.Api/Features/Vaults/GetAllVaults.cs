@@ -16,6 +16,7 @@ namespace TimeVault.Api.Features.Vaults
         public class Query : IRequest<IActionResult>
         {
             public Guid UserId { get; set; }
+            public bool SharedOnly { get; set; } = false;
         }
 
         public class Validator : AbstractValidator<Query>
@@ -39,15 +40,27 @@ namespace TimeVault.Api.Features.Vaults
 
             public async Task<IActionResult> Handle(Query request, CancellationToken cancellationToken)
             {
-                // Get user owned vaults
-                var userVaults = await _vaultService.GetUserVaultsAsync(request.UserId);
-                
-                // Get vaults shared with the user
-                var sharedVaults = await _vaultService.GetSharedVaultsAsync(request.UserId);
-                
-                // Combine and map both sets of vaults
-                var allVaults = userVaults.Concat(sharedVaults);
-                return new OkObjectResult(_mapper.Map<List<VaultDto>>(allVaults));
+                IEnumerable<Domain.Entities.Vault> vaults;
+
+                if (request.SharedOnly)
+                {
+                    // Return only shared vaults
+                    vaults = await _vaultService.GetSharedVaultsAsync(request.UserId);
+                }
+                else
+                {
+                    // Get user owned vaults
+                    var userVaults = await _vaultService.GetUserVaultsAsync(request.UserId);
+                    
+                    // Get vaults shared with the user
+                    var sharedVaults = await _vaultService.GetSharedVaultsAsync(request.UserId);
+                    
+                    // Combine both sets of vaults
+                    vaults = userVaults.Concat(sharedVaults);
+                }
+
+                // Map the vaults to DTOs
+                return new OkObjectResult(_mapper.Map<List<VaultDto>>(vaults));
             }
         }
     }

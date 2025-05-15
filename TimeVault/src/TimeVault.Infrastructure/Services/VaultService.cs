@@ -51,7 +51,7 @@ namespace TimeVault.Infrastructure.Services
             return vault;
         }
 
-        public async Task<Vault> GetVaultByIdAsync(Guid vaultId, Guid userId)
+        public async Task<Vault?> GetVaultByIdAsync(Guid vaultId, Guid userId)
         {
             // Check if user is the owner
             var vault = await _context.Vaults

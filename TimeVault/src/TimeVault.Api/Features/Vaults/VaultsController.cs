@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Threading.Tasks;
+using TimeVault.Api.Features.Vaults;
 
 namespace TimeVault.Api.Features.Vaults
 {
@@ -21,23 +22,33 @@ namespace TimeVault.Api.Features.Vaults
         [HttpGet]
         public async Task<IActionResult> GetAllVaults()
         {
-            var userId = GetCurrentUserId();
-            if (userId == Guid.Empty)
-                return Unauthorized();
+            var query = new GetAllVaults.Query { UserId = GetCurrentUserId() };
+            var result = await _mediator.Send(query);
+            return Ok(result);
+        }
 
-            var result = await _mediator.Send(new GetAllVaults.Query { UserId = userId });
+        [HttpGet("shared")]
+        public async Task<IActionResult> GetSharedVaults()
+        {
+            var query = new GetAllVaults.Query 
+            { 
+                UserId = GetCurrentUserId(),
+                SharedOnly = true
+            };
+            var result = await _mediator.Send(query);
             return Ok(result);
         }
 
         [HttpGet("{id}")]
         public async Task<IActionResult> GetVault(Guid id)
         {
-            var userId = GetCurrentUserId();
-            if (userId == Guid.Empty)
-                return Unauthorized();
+            var query = new GetVault.Query
+            {
+                VaultId = id,
+                UserId = GetCurrentUserId()
+            };
 
-            var result = await _mediator.Send(new GetVault.Query { VaultId = id, UserId = userId });
-            
+            var result = await _mediator.Send(query);
             if (result == null)
                 return NotFound();
 
@@ -47,41 +58,29 @@ namespace TimeVault.Api.Features.Vaults
         [HttpPost]
         public async Task<IActionResult> CreateVault([FromBody] CreateVaultRequest request)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            var command = new CreateVault.Command
+            {
+                UserId = GetCurrentUserId(),
+                Name = request.Name,
+                Description = request.Description
+            };
 
-            var userId = GetCurrentUserId();
-            if (userId == Guid.Empty)
-                return Unauthorized();
-
-            var result = await _mediator.Send(new CreateVault.Command 
-            { 
-                UserId = userId, 
-                Name = request.Name, 
-                Description = request.Description 
-            });
-
+            var result = await _mediator.Send(command);
             return CreatedAtAction(nameof(GetVault), new { id = result.Id }, result);
         }
 
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateVault(Guid id, [FromBody] UpdateVaultRequest request)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            var command = new UpdateVault.Command
+            {
+                VaultId = id,
+                UserId = GetCurrentUserId(),
+                Name = request.Name,
+                Description = request.Description
+            };
 
-            var userId = GetCurrentUserId();
-            if (userId == Guid.Empty)
-                return Unauthorized();
-
-            var result = await _mediator.Send(new UpdateVault.Command 
-            { 
-                VaultId = id, 
-                UserId = userId, 
-                Name = request.Name, 
-                Description = request.Description 
-            });
-
+            var result = await _mediator.Send(command);
             if (!result)
                 return NotFound();
 
@@ -91,12 +90,13 @@ namespace TimeVault.Api.Features.Vaults
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteVault(Guid id)
         {
-            var userId = GetCurrentUserId();
-            if (userId == Guid.Empty)
-                return Unauthorized();
+            var command = new DeleteVault.Command
+            {
+                VaultId = id,
+                UserId = GetCurrentUserId()
+            };
 
-            var result = await _mediator.Send(new DeleteVault.Command { VaultId = id, UserId = userId });
-
+            var result = await _mediator.Send(command);
             if (!result)
                 return NotFound();
 
@@ -106,66 +106,55 @@ namespace TimeVault.Api.Features.Vaults
         [HttpPost("{id}/share")]
         public async Task<IActionResult> ShareVault(Guid id, [FromBody] ShareVaultRequest request)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            var command = new ShareVault.Command
+            {
+                VaultId = id,
+                OwnerUserId = GetCurrentUserId(),
+                TargetUserId = request.UserId,
+                CanEdit = request.CanEdit
+            };
 
-            var userId = GetCurrentUserId();
-            if (userId == Guid.Empty)
-                return Unauthorized();
-
-            var result = await _mediator.Send(new ShareVault.Command 
-            { 
-                VaultId = id, 
-                OwnerUserId = userId, 
-                TargetUserId = request.UserId, 
-                CanEdit = request.CanEdit 
-            });
-
+            var result = await _mediator.Send(command);
             if (!result)
-                return BadRequest(new { message = "Failed to share vault" });
+                return BadRequest("Failed to share vault, check that the vault exists and you are the owner.");
 
-            return Ok(new { message = "Vault shared successfully" });
+            return Ok();
         }
 
         [HttpDelete("{id}/share/{targetUserId}")]
         public async Task<IActionResult> RevokeVaultShare(Guid id, Guid targetUserId)
         {
-            var userId = GetCurrentUserId();
-            if (userId == Guid.Empty)
-                return Unauthorized();
+            var command = new RevokeVaultShare.Command
+            {
+                VaultId = id,
+                OwnerUserId = GetCurrentUserId(),
+                TargetUserId = targetUserId
+            };
 
-            var result = await _mediator.Send(new RevokeVaultShare.Command 
-            { 
-                VaultId = id, 
-                OwnerUserId = userId, 
-                TargetUserId = targetUserId 
-            });
-
+            var result = await _mediator.Send(command);
             if (!result)
-                return BadRequest(new { message = "Failed to revoke vault share" });
+                return BadRequest("Failed to revoke vault share, check that the vault exists and you are the owner.");
 
-            return Ok(new { message = "Vault share revoked successfully" });
+            return Ok();
         }
 
         private Guid GetCurrentUserId()
         {
-            if (Guid.TryParse(User.FindFirst("id")?.Value, out Guid userId))
-                return userId;
-
-            return Guid.Empty;
+            var userIdClaim = User.FindFirst("id");
+            return userIdClaim != null ? Guid.Parse(userIdClaim.Value) : Guid.Empty;
         }
     }
 
     public class CreateVaultRequest
     {
-        public string Name { get; set; }
-        public string Description { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
     }
 
     public class UpdateVaultRequest
     {
-        public string Name { get; set; }
-        public string Description { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
     }
 
     public class ShareVaultRequest

@@ -54,8 +54,8 @@ namespace TimeVault.Core.Services.Interfaces
     public class DrandRoundResponse
     {
         public long Round { get; set; }
-        public string Randomness { get; set; }
-        public string Signature { get; set; }
+        public string Randomness { get; set; } = string.Empty;
+        public string Signature { get; set; } = string.Empty;
         public long PreviousSignature { get; set; }
     }
 } 

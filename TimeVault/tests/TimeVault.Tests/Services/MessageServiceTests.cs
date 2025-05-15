@@ -47,7 +47,10 @@ namespace TimeVault.Tests.Services
                 Id = _testUserId,
                 Email = "test@example.com",
                 PasswordHash = "hashedpassword",
-                CreatedAt = DateTime.UtcNow
+                FirstName = "Test", 
+                LastName = "User",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             });
 
             _dbContext.Users.Add(new User
@@ -55,7 +58,10 @@ namespace TimeVault.Tests.Services
                 Id = _otherUserId,
                 Email = "other@example.com",
                 PasswordHash = "hashedpassword",
-                CreatedAt = DateTime.UtcNow
+                FirstName = "Other",
+                LastName = "User",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             });
 
             _dbContext.Vaults.Add(new Vault

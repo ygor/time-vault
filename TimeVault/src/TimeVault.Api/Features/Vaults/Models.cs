@@ -7,11 +7,11 @@ namespace TimeVault.Api.Features.Vaults
     public class VaultDto
     {
         public Guid Id { get; set; }
-        public string Name { get; set; }
-        public string Description { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
         public Guid OwnerId { get; set; }
-        public string OwnerEmail { get; set; }
+        public string OwnerEmail { get; set; } = string.Empty;
         public int MessageCount { get; set; }
         public int UnreadMessageCount { get; set; }
         public bool IsOwner { get; set; }
@@ -23,7 +23,7 @@ namespace TimeVault.Api.Features.Vaults
     public class VaultShareDto
     {
         public Guid UserId { get; set; }
-        public string Email { get; set; }
+        public string Email { get; set; } = string.Empty;
         public bool CanEdit { get; set; }
         public DateTime SharedAt { get; set; }
     }

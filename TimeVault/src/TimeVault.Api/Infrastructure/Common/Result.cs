@@ -9,9 +9,9 @@ namespace TimeVault.Api.Infrastructure.Common
     public class Result<T>
     {
         public bool Success { get; private set; }
-        public T Data { get; private set; }
-        public string Message { get; private set; }
-        public string Error { get; private set; }
+        public T? Data { get; private set; }
+        public string Message { get; private set; } = string.Empty;
+        public string Error { get; private set; } = string.Empty;
         public List<string> ValidationErrors { get; private set; }
 
         private Result() 
@@ -76,8 +76,8 @@ namespace TimeVault.Api.Infrastructure.Common
     public class Result
     {
         public bool Success { get; private set; }
-        public string Message { get; private set; }
-        public string Error { get; private set; }
+        public string Message { get; private set; } = string.Empty;
+        public string Error { get; private set; } = string.Empty;
         public List<string> ValidationErrors { get; private set; }
 
         private Result()

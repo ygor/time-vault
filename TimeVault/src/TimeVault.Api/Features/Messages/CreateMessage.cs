@@ -10,12 +10,12 @@ namespace TimeVault.Api.Features.Messages
 {
     public static class CreateMessage
     {
-        public class Command : IRequest<MessageDto>
+        public class Command : IRequest<MessageDto?>
         {
             public Guid VaultId { get; set; }
             public Guid UserId { get; set; }
-            public string Title { get; set; }
-            public string Content { get; set; }
+            public string Title { get; set; } = string.Empty;
+            public string Content { get; set; } = string.Empty;
             public DateTime? UnlockDateTime { get; set; }
         }
 
@@ -23,14 +23,14 @@ namespace TimeVault.Api.Features.Messages
         {
             public Validator()
             {
-                RuleFor(x => x.VaultId).NotEmpty();
-                RuleFor(x => x.UserId).NotEmpty();
-                RuleFor(x => x.Title).NotEmpty().MaximumLength(100);
-                RuleFor(x => x.Content).NotEmpty();
+                RuleFor(x => x.VaultId).NotEmpty().WithMessage("Vault ID is required");
+                RuleFor(x => x.UserId).NotEmpty().WithMessage("User ID is required");
+                RuleFor(x => x.Title).NotEmpty().WithMessage("Title is required");
+                RuleFor(x => x.Content).NotEmpty().WithMessage("Content is required");
             }
         }
 
-        public class Handler : IRequestHandler<Command, MessageDto>
+        public class Handler : IRequestHandler<Command, MessageDto?>
         {
             private readonly IMessageService _messageService;
             private readonly IMapper _mapper;
@@ -41,7 +41,7 @@ namespace TimeVault.Api.Features.Messages
                 _mapper = mapper;
             }
 
-            public async Task<MessageDto> Handle(Command request, CancellationToken cancellationToken)
+            public async Task<MessageDto?> Handle(Command request, CancellationToken cancellationToken)
             {
                 var message = await _messageService.CreateMessageAsync(
                     request.VaultId,
@@ -52,7 +52,7 @@ namespace TimeVault.Api.Features.Messages
 
                 if (message == null)
                     return null;
-
+                    
                 return _mapper.Map<MessageDto>(message);
             }
         }

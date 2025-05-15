@@ -10,7 +10,7 @@ namespace TimeVault.Api.Features.Vaults
 {
     public static class GetVault
     {
-        public class Query : IRequest<VaultDto>
+        public class Query : IRequest<VaultDto?>
         {
             public Guid VaultId { get; set; }
             public Guid UserId { get; set; }
@@ -25,7 +25,7 @@ namespace TimeVault.Api.Features.Vaults
             }
         }
 
-        public class Handler : IRequestHandler<Query, VaultDto>
+        public class Handler : IRequestHandler<Query, VaultDto?>
         {
             private readonly IVaultService _vaultService;
             private readonly IMapper _mapper;
@@ -36,7 +36,7 @@ namespace TimeVault.Api.Features.Vaults
                 _mapper = mapper;
             }
 
-            public async Task<VaultDto> Handle(Query request, CancellationToken cancellationToken)
+            public async Task<VaultDto?> Handle(Query request, CancellationToken cancellationToken)
             {
                 var vault = await _vaultService.GetVaultByIdAsync(request.VaultId, request.UserId);
                 

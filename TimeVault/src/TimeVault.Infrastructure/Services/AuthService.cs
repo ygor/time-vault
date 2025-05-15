@@ -25,7 +25,7 @@ namespace TimeVault.Infrastructure.Services
             _configuration = configuration;
         }
 
-        public async Task<(bool Success, string Token, User User, string Error)> LoginAsync(string email, string password)
+        public async Task<(bool Success, string Token, User? User, string Error)> LoginAsync(string email, string password)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => 
                 u.Email.ToLower() == email.ToLower());
@@ -46,7 +46,7 @@ namespace TimeVault.Infrastructure.Services
             return (true, token, user, string.Empty);
         }
 
-        public async Task<(bool Success, string Token, User User, string Error)> RegisterAsync(string email, string password)
+        public async Task<(bool Success, string Token, User? User, string Error)> RegisterAsync(string email, string password)
         {
             if (await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower()))
                 return (false, string.Empty, null, "Email already registered");

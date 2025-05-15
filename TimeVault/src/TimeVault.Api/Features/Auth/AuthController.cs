@@ -20,17 +20,16 @@ namespace TimeVault.Api.Features.Auth
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            var command = new Login.Command
+            {
+                Email = request.Email,
+                Password = request.Password
+            };
 
-            var result = await _mediator.Send(new Login.Command 
-            { 
-                Email = request.Email, 
-                Password = request.Password 
-            });
+            var result = await _mediator.Send(command);
 
             if (!result.Success)
-                return Unauthorized(new { message = result.Error });
+                return Unauthorized(new { error = result.Error });
 
             return Ok(result);
         }
@@ -38,17 +37,16 @@ namespace TimeVault.Api.Features.Auth
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterRequest request)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            var command = new Register.Command
+            {
+                Email = request.Email,
+                Password = request.Password
+            };
 
-            var result = await _mediator.Send(new Register.Command 
-            { 
-                Email = request.Email, 
-                Password = request.Password 
-            });
+            var result = await _mediator.Send(command);
 
             if (!result.Success)
-                return BadRequest(new { message = result.Error });
+                return BadRequest(new { error = result.Error });
 
             return Ok(result);
         }
@@ -56,13 +54,15 @@ namespace TimeVault.Api.Features.Auth
         [HttpPost("refresh-token")]
         public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
         {
-            if (string.IsNullOrEmpty(request.Token))
-                return BadRequest(new { message = "Token is required" });
+            var command = new RefreshToken.Command
+            {
+                Token = request.Token
+            };
 
-            var result = await _mediator.Send(new RefreshToken.Command { Token = request.Token });
+            var result = await _mediator.Send(command);
 
             if (!result.Success)
-                return Unauthorized(new { message = result.Error });
+                return BadRequest(new { error = result.Error });
 
             return Ok(new { token = result.Token });
         }
@@ -71,56 +71,52 @@ namespace TimeVault.Api.Features.Auth
         [HttpPost("change-password")]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            if (request.NewPassword != request.ConfirmNewPassword)
+                return BadRequest(new { error = "New password and confirmation do not match" });
 
-            var userId = GetCurrentUserId();
-            if (userId == Guid.Empty)
-                return Unauthorized();
+            var command = new ChangePassword.Command
+            {
+                UserId = GetCurrentUserId(),
+                CurrentPassword = request.CurrentPassword,
+                NewPassword = request.NewPassword
+            };
 
-            var result = await _mediator.Send(new ChangePassword.Command 
-            { 
-                UserId = userId,
-                CurrentPassword = request.CurrentPassword, 
-                NewPassword = request.NewPassword 
-            });
+            var result = await _mediator.Send(command);
 
             if (!result.Success)
-                return BadRequest(new { message = result.Error });
+                return BadRequest(new { error = result.Error });
 
             return Ok(new { message = "Password changed successfully" });
         }
 
         private Guid GetCurrentUserId()
         {
-            if (Guid.TryParse(User.FindFirst("id")?.Value, out Guid userId))
-                return userId;
-
-            return Guid.Empty;
+            var userIdClaim = User.FindFirst("id");
+            return userIdClaim != null ? Guid.Parse(userIdClaim.Value) : Guid.Empty;
         }
     }
 
     public class LoginRequest
     {
-        public string Email { get; set; }
-        public string Password { get; set; }
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
     }
 
     public class RegisterRequest
     {
-        public string Email { get; set; }
-        public string Password { get; set; }
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
     }
 
     public class RefreshTokenRequest
     {
-        public string Token { get; set; }
+        public string Token { get; set; } = string.Empty;
     }
 
     public class ChangePasswordRequest
     {
-        public string CurrentPassword { get; set; }
-        public string NewPassword { get; set; }
-        public string ConfirmNewPassword { get; set; }
+        public string CurrentPassword { get; set; } = string.Empty;
+        public string NewPassword { get; set; } = string.Empty;
+        public string ConfirmNewPassword { get; set; } = string.Empty;
     }
 } 
