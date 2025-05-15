@@ -25,11 +25,10 @@ namespace TimeVault.Infrastructure.Services
             _configuration = configuration;
         }
 
-        public async Task<(bool Success, string Token, User User, string Error)> LoginAsync(string emailOrUsername, string password)
+        public async Task<(bool Success, string Token, User User, string Error)> LoginAsync(string email, string password)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => 
-                u.Email.ToLower() == emailOrUsername.ToLower() || 
-                u.Username.ToLower() == emailOrUsername.ToLower());
+                u.Email.ToLower() == email.ToLower());
 
             if (user == null)
                 return (false, string.Empty, null, "User not found");
@@ -46,18 +45,14 @@ namespace TimeVault.Infrastructure.Services
             return (true, token, user, string.Empty);
         }
 
-        public async Task<(bool Success, string Token, User User, string Error)> RegisterAsync(string username, string email, string password)
+        public async Task<(bool Success, string Token, User User, string Error)> RegisterAsync(string email, string password)
         {
-            if (await _context.Users.AnyAsync(u => u.Username.ToLower() == username.ToLower()))
-                return (false, string.Empty, null, "Username already taken");
-
             if (await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower()))
                 return (false, string.Empty, null, "Email already registered");
 
             var user = new User
             {
                 Id = Guid.NewGuid(),
-                Username = username,
                 Email = email,
                 PasswordHash = HashPassword(password),
                 CreatedAt = DateTime.UtcNow,
@@ -135,7 +130,6 @@ namespace TimeVault.Infrastructure.Services
                 Subject = new ClaimsIdentity(new[]
                 {
                     new Claim("id", user.Id.ToString()),
-                    new Claim(ClaimTypes.Name, user.Username),
                     new Claim(ClaimTypes.Email, user.Email)
                 }),
                 Expires = DateTime.UtcNow.AddDays(7),

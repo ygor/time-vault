@@ -1,134 +1,164 @@
-# TimeVault
+# TimeVault API
 
-TimeVault is a secure time-locked message vault application built with ASP.NET Core. It allows users to create encrypted messages that can only be accessed after a specific time has passed.
+TimeVault is a secure, time-based messaging application that allows users to create vaults and share encrypted messages that can only be accessed at specific dates and times.
 
-## Features
+## Table of Contents
 
-- Robust user authentication with JWT tokens
-- Create and manage vaults to organize your messages
-- Share vaults with other users (with read-only or edit permissions)
-- Create time-locked messages that unlock at a specified date and time
-- Secure message encryption for sensitive content
-- RESTful API with Swagger documentation
+- [Key Features](#key-features)
+- [Technology Stack](#technology-stack)
+- [Solution Structure](#solution-structure)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Local Development](#local-development)
+  - [Running Tests](#running-tests)
+- [API Documentation](#api-documentation)
+- [Deployment](#deployment)
+  - [Azure Credentials Setup](#azure-credentials-setup)
+  - [Quick Deployment Steps](#quick-deployment-steps)
+  - [Detailed Deployment Guides](#detailed-deployment-guides)
+- [Environment Configuration](#environment-configuration)
+- [Authentication](#authentication)
+- [Additional Documentation](#additional-documentation)
+- [License](#license)
+
+## Key Features
+
+- **Email-based Authentication**: Secure user authentication system based on email and password
+- **Encrypted Vaults**: Create and manage time-based message vaults
+- **Vault Sharing**: Share vaults with other users with specific permissions
+- **Scheduled Messages**: Set precise unlock dates for messages
+- **End-to-End Encryption**: Messages are encrypted before storage
 
 ## Technology Stack
 
-- **Backend:** ASP.NET Core 8.0
-- **Database:** SQL Server with Entity Framework Core
-- **Authentication:** JWT token-based authentication
-- **API Documentation:** Swagger / OpenAPI
-- **Encryption:** AES for message content encryption
-- **Architecture:** Vertical Slice Architecture with CQRS pattern
-- **Testing:** xUnit, FluentAssertions, Moq
+- **Backend**: ASP.NET Core API with Clean Architecture
+- **Database**: Azure SQL Database with Entity Framework Core
+- **Authentication**: JWT-based authentication
+- **Encryption**: AES-256 for data encryption
+- **Infrastructure**: Azure App Service, Key Vault, Application Insights
+- **CI/CD**: GitHub Actions for automated deployments
+- **IaC**: Terraform for infrastructure provisioning
 
-## Project Structure
+## Solution Structure
 
-The solution follows a Vertical Slice Architecture pattern:
-
-- **TimeVault.Api**: API controllers, features (commands/queries), and infrastructure
-- **TimeVault.Core**: Core interfaces and services
-- **TimeVault.Domain**: Domain entities and business models
-- **TimeVault.Infrastructure**: Data access and service implementations
-
-### Vertical Slice Architecture
-
-The TimeVault API has been refactored to use Vertical Slice Architecture, which organizes code around features rather than technical concerns. Each feature contains its own:
-
-- Controller endpoint
-- Command/Query handlers (using MediatR)
-- Validation logic (using FluentValidation)
-- DTOs and mapping
-
-Benefits of this architecture include:
-- Better separation of concerns
-- Improved maintainability
-- Feature isolation
-- Easier testability
+```
+TimeVault/
+├── src/
+│   ├── TimeVault.Api/           # ASP.NET Core API project
+│   ├── TimeVault.Core/          # Domain models and business logic
+│   ├── TimeVault.Infrastructure/ # External services implementation
+│   └── TimeVault.Persistence/   # Database context and repositories
+├── tests/
+│   ├── TimeVault.Api.Tests/     # API tests
+│   ├── TimeVault.Core.Tests/    # Domain logic tests
+│   └── TimeVault.Integration.Tests/ # Integration tests
+└── terraform/                  # Infrastructure as Code
+    ├── modules/                # Terraform modules
+    └── environments/           # Environment-specific configs
+```
 
 ## Getting Started
 
 ### Prerequisites
 
-- .NET 8.0 SDK or later
-- SQL Server (or SQL Server LocalDB for development)
-- Visual Studio 2022, VS Code, or Rider
+- .NET 7.0 SDK or later
+- SQL Server or Azure SQL Database
+- Azure CLI (for deployment)
+- Terraform CLI (for infrastructure provisioning)
 
-### Setup
+### Local Development
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/TimeVault.git
-cd TimeVault
-```
+1. Clone the repository
+2. Set up the database connection string in `appsettings.Development.json`
+3. Run the migrations:
+   ```
+   cd src/TimeVault.Api
+   dotnet ef database update
+   ```
+4. Start the API:
+   ```
+   dotnet run
+   ```
 
-2. Set up the database:
-   - Update the connection string in `appsettings.json` if needed
-   - Run the Entity Framework migrations:
-```bash
-cd src/TimeVault.Api
-dotnet ef database update
-```
-
-3. Run the application:
-```bash
-dotnet run
-```
-
-The API will be available at https://localhost:5001 and the Swagger documentation at https://localhost:5001/swagger.
-
-### Default Credentials
-
-A default admin user is created when the application starts:
-
-- Username: admin
-- Email: admin@timevault.com
-- Password: Admin123!
-
-**Important**: Change these credentials in production!
-
-## Testing
-
-The project includes a comprehensive test suite covering:
-
-- Unit tests for feature handlers
-- Service tests
-- Infrastructure tests (including validation behaviors and middleware)
-
-Run the tests using:
+### Running Tests
 
 ```bash
 dotnet test
 ```
 
-## API Endpoints
+## API Documentation
 
-The TimeVault API provides the following main endpoint groups:
+When running locally, API documentation is available at:
+- Swagger UI: `https://localhost:5001/swagger`
+- OpenAPI JSON: `https://localhost:5001/swagger/v1/swagger.json`
 
-- **Auth**: `/api/auth` - Authentication endpoints for login, registration, etc.
-- **Vaults**: `/api/vaults` - Endpoints for managing vaults and vault sharing
-- **Messages**: `/api/messages` - Endpoints for creating and accessing time-locked messages
+See [API-ENDPOINTS.md](./API-ENDPOINTS.md) for a detailed overview of all available endpoints.
 
-For complete API documentation, refer to the Swagger UI.
+## Deployment
 
-## How Time-Locking Works
+### Azure Credentials Setup
 
-TimeVault uses symmetric encryption (AES) to encrypt message content. When a user creates a message with an unlock time:
+Before deploying, you'll need to set up the following Azure credentials as GitHub Secrets:
 
-1. The content is encrypted using AES with a random key
-2. The encrypted content is stored in the database
-3. When the unlock time passes, the message can be decrypted and displayed to authorized users
+1. **Create an Azure Service Principal**:
+   ```bash
+   az login
+   az ad sp create-for-rbac --name "terraform-timevault" --role Contributor \
+       --scopes /subscriptions/{subscription-id} --sdk-auth
+   ```
+   Save the JSON output from this command.
 
-### Advanced Time-Locking
+2. **Add Secrets to GitHub**:
+   Navigate to your GitHub repository → Settings → Secrets and variables → Actions and add:
+   
+   - `AZURE_CLIENT_ID` - Service Principal client ID
+   - `AZURE_CLIENT_SECRET` - Service Principal secret
+   - `AZURE_SUBSCRIPTION_ID` - Your Azure subscription ID
+   - `AZURE_TENANT_ID` - Your Azure tenant ID
+   - `AZURE_CREDENTIALS` - The entire JSON output from service principal creation
+   - `TERRAFORM_STORAGE_RG` - Resource group for Terraform state storage
+   - `TERRAFORM_STORAGE_ACCOUNT` - Storage account for Terraform state
+   - `SQL_ADMIN_USERNAME` - SQL Server admin username
+   - `SQL_ADMIN_PASSWORD` - SQL Server admin password
+   - `JWT_KEY` - Secret key for JWT token signing
 
-For longer time periods, TimeVault supports decentralized randomness beacon (drand) based timelock encryption, which provides a more secure time-locking mechanism by using decentralized beacons.
+### Quick Deployment Steps
 
-## Security Considerations
+1. **Backend Deployment**: 
+   - Push to the appropriate branch (`develop`, `staging`, or `main`)
+   - GitHub Actions will automatically deploy to the corresponding environment
 
-- All user passwords are securely hashed
-- JWT tokens are used for authentication
-- Message content is encrypted at rest
-- API requires HTTPS
-- Authorization checks prevent unauthorized access to vaults and messages
+2. **Frontend Deployment**:
+   - Configure Azure Static Web App with GitHub integration
+   - Push to your configured branch to trigger deployment
+
+### Detailed Deployment Guides
+
+For complete deployment instructions see:
+- [AZURE-DEPLOYMENT.md](./AZURE-DEPLOYMENT.md) - Azure-specific deployment details
+- [DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md) - Comprehensive deployment guide for both backend and frontend
+- [terraform/README.md](./terraform/README.md) - Terraform infrastructure documentation
+
+## Environment Configuration
+
+TimeVault supports multiple environments:
+- **Development**: Minimal resources for local development
+- **Staging**: Moderate resources for testing
+- **Production**: Robust resources with redundancy for live use
+
+## Authentication
+
+TimeVault uses email-based authentication with JWT tokens. To authenticate:
+
+1. Register a new user with email and password
+2. Login with credentials to receive a JWT token
+3. Include the token in the Authorization header for subsequent requests
+
+## Additional Documentation
+
+- [FRONTEND-ARCHITECTURE.md](./FRONTEND-ARCHITECTURE.md) - Frontend application architecture
+- [SECURITY-GUIDE.md](./SECURITY-GUIDE.md) - Security architecture and best practices
+- [FUTURE-ENHANCEMENTS.md](./FUTURE-ENHANCEMENTS.md) - Planned future features and improvements
 
 ## License
 

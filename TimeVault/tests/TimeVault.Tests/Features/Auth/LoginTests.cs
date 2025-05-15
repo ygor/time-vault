@@ -42,20 +42,19 @@ namespace TimeVault.Tests.Features.Auth
             // Arrange
             var command = new Login.Command
             {
-                EmailOrUsername = "test@example.com",
+                Email = "test@example.com",
                 Password = "Password123!"
             };
 
             var user = new User
             {
                 Id = Guid.NewGuid(),
-                Username = "testuser",
-                Email = command.EmailOrUsername,
+                Email = command.Email,
                 CreatedAt = DateTime.UtcNow
             };
 
             _mockAuthService.Setup(x => x.LoginAsync(
-                    command.EmailOrUsername,
+                    command.Email,
                     command.Password))
                 .ReturnsAsync((true, "token123", user, string.Empty));
 
@@ -66,7 +65,7 @@ namespace TimeVault.Tests.Features.Auth
             result.Success.Should().BeTrue();
             result.Token.Should().Be("token123");
             result.User.Should().NotBeNull();
-            result.User.Email.Should().Be(command.EmailOrUsername);
+            result.User.Email.Should().Be(command.Email);
         }
 
         [Fact]
@@ -75,14 +74,14 @@ namespace TimeVault.Tests.Features.Auth
             // Arrange
             var command = new Login.Command
             {
-                EmailOrUsername = "test@example.com",
+                Email = "test@example.com",
                 Password = "WrongPassword"
             };
 
             // Suppress nullability warnings for Moq setup methods
 #pragma warning disable CS8620 // Argument cannot be used for parameter due to differences in nullability of reference types.
             _mockAuthService.Setup(x => x.LoginAsync(
-                    command.EmailOrUsername,
+                    command.Email,
                     command.Password))
                 .ReturnsAsync((false, string.Empty, (User?)null, "Invalid password"));
 #pragma warning restore CS8620

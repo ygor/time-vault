@@ -24,10 +24,6 @@ namespace TimeVault.Infrastructure.Data
 
             // Configure the User entity
             modelBuilder.Entity<User>()
-                .HasIndex(u => u.Username)
-                .IsUnique();
-
-            modelBuilder.Entity<User>()
                 .HasIndex(u => u.Email)
                 .IsUnique();
 

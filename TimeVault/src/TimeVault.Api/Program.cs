@@ -179,7 +179,6 @@ public static class SeedData
     {
         // Create admin user if it doesn't exist
         var (success, _, _, error) = await authService.RegisterAsync(
-            "admin",
             "admin@timevault.com",
             "Admin123!");
 
