@@ -3,6 +3,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Moq;
+using TimeVault.Core.Services.Interfaces;
 using TimeVault.Domain.Entities;
 using TimeVault.Infrastructure.Data;
 using TimeVault.Infrastructure.Services;
@@ -14,6 +16,7 @@ namespace TimeVault.Tests.Services
     {
         private readonly ApplicationDbContext _dbContext;
         private readonly VaultService _vaultService;
+        private readonly Mock<IKeyVaultService> _mockKeyVaultService;
         private readonly Guid _testUserId;
         private readonly Guid _otherUserId;
 
@@ -26,7 +29,22 @@ namespace TimeVault.Tests.Services
                 .Options;
 
             _dbContext = new ApplicationDbContext(options);
-            _vaultService = new VaultService(_dbContext);
+            _mockKeyVaultService = new Mock<IKeyVaultService>();
+            
+            // Setup key pair generation for the vault service
+            _mockKeyVaultService
+                .Setup(k => k.GenerateVaultKeyPairAsync())
+                .ReturnsAsync(("testPublicKey", "testPrivateKey"));
+                
+            _mockKeyVaultService
+                .Setup(k => k.EncryptVaultPrivateKeyAsync(It.IsAny<string>(), It.IsAny<Guid>()))
+                .ReturnsAsync("encryptedPrivateKey");
+                
+            _mockKeyVaultService
+                .Setup(k => k.DecryptVaultPrivateKeyAsync(It.IsAny<string>(), It.IsAny<Guid>()))
+                .ReturnsAsync("decryptedPrivateKey");
+                
+            _vaultService = new VaultService(_dbContext, _mockKeyVaultService.Object);
 
             // Create test users
             _testUserId = Guid.NewGuid();

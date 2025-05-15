@@ -37,6 +37,14 @@ namespace TimeVault.Infrastructure.Data
                 .WithMany(u => u.Vaults)
                 .HasForeignKey(v => v.OwnerId)
                 .OnDelete(DeleteBehavior.Restrict);
+                
+            modelBuilder.Entity<Vault>()
+                .Property(v => v.PublicKey)
+                .IsRequired();
+                
+            modelBuilder.Entity<Vault>()
+                .Property(v => v.EncryptedPrivateKey)
+                .IsRequired();
 
             // Configure the Message entity
             modelBuilder.Entity<Message>()

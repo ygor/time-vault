@@ -29,11 +29,21 @@ namespace TimeVault.Core.Services.Interfaces
         /// Encrypts content using tlock with a specific round
         /// </summary>
         Task<string> EncryptWithTlockAsync(string content, long round);
+        
+        /// <summary>
+        /// Encrypts content using tlock with a specific round and the vault's public key
+        /// </summary>
+        Task<string> EncryptWithTlockAndVaultKeyAsync(string content, long round, string vaultPublicKey);
 
         /// <summary>
         /// Attempts to decrypt tlock encrypted content
         /// </summary>
         Task<string> DecryptWithTlockAsync(string encryptedContent, long round);
+        
+        /// <summary>
+        /// Attempts to decrypt tlock encrypted content using the vault's private key
+        /// </summary>
+        Task<string> DecryptWithTlockAndVaultKeyAsync(string encryptedContent, long round, string vaultPrivateKey);
 
         /// <summary>
         /// Checks if a specific round has been reached or exceeded

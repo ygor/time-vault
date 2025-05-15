@@ -10,6 +10,10 @@ namespace TimeVault.Domain.Entities
         public string Description { get; set; }
         public DateTime CreatedAt { get; set; }
         
+        // Vault-specific cryptographic keys
+        public string PublicKey { get; set; }
+        public string EncryptedPrivateKey { get; set; }
+        
         // Foreign keys
         public Guid OwnerId { get; set; }
         

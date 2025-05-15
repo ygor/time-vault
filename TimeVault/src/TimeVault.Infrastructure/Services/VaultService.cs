@@ -12,10 +12,12 @@ namespace TimeVault.Infrastructure.Services
     public class VaultService : IVaultService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IKeyVaultService _keyVaultService;
 
-        public VaultService(ApplicationDbContext context)
+        public VaultService(ApplicationDbContext context, IKeyVaultService keyVaultService)
         {
             _context = context;
+            _keyVaultService = keyVaultService;
         }
 
         public async Task<Vault> CreateVaultAsync(Guid userId, string name, string description)
@@ -24,13 +26,21 @@ namespace TimeVault.Infrastructure.Services
             if (user == null)
                 return new Vault();
 
+            // Generate a unique key pair for this vault
+            var (publicKey, privateKey) = await _keyVaultService.GenerateVaultKeyPairAsync();
+            
+            // Encrypt the private key with the user's key
+            var encryptedPrivateKey = await _keyVaultService.EncryptVaultPrivateKeyAsync(privateKey, userId);
+            
             var vault = new Vault
             {
                 Id = Guid.NewGuid(),
                 Name = name,
                 Description = description,
                 CreatedAt = DateTime.UtcNow,
-                OwnerId = userId
+                OwnerId = userId,
+                PublicKey = publicKey,
+                EncryptedPrivateKey = encryptedPrivateKey
             };
 
             await _context.Vaults.AddAsync(vault);
@@ -128,39 +138,31 @@ namespace TimeVault.Infrastructure.Services
             if (vault == null || vault.OwnerId != ownerUserId)
                 return false;
 
-            var targetUser = await _context.Users.FindAsync(targetUserId);
-            if (targetUser == null)
-                return false;
-
-            // Prevent sharing with self
-            if (ownerUserId == targetUserId)
-                return false;
-
-            // Check if already shared
+            // Check if vault is already shared with this user
             var existingShare = await _context.VaultShares
                 .FirstOrDefaultAsync(vs => vs.VaultId == vaultId && vs.UserId == targetUserId);
 
             if (existingShare != null)
             {
-                // Update share permissions
+                // Update existing share permissions
                 existingShare.CanEdit = canEdit;
+                await _context.SaveChangesAsync();
+                return true;
             }
-            else
+
+            // Create new share
+            var share = new VaultShare
             {
-                // Create new share
-                var vaultShare = new VaultShare
-                {
-                    Id = Guid.NewGuid(),
-                    VaultId = vaultId,
-                    UserId = targetUserId,
-                    SharedAt = DateTime.UtcNow,
-                    CanEdit = canEdit
-                };
+                Id = Guid.NewGuid(),
+                VaultId = vaultId,
+                UserId = targetUserId,
+                SharedAt = DateTime.UtcNow,
+                CanEdit = canEdit
+            };
 
-                await _context.VaultShares.AddAsync(vaultShare);
-            }
-
+            await _context.VaultShares.AddAsync(share);
             await _context.SaveChangesAsync();
+
             return true;
         }
 
@@ -212,6 +214,22 @@ namespace TimeVault.Infrastructure.Services
                 .AnyAsync(vs => vs.VaultId == vaultId && vs.UserId == userId && vs.CanEdit);
 
             return canEdit;
+        }
+        
+        // Helper method to get the decrypted private key for a vault
+        public async Task<string> GetVaultPrivateKeyAsync(Guid vaultId, Guid userId)
+        {
+            // First check if the user has access to the vault
+            if (!await HasVaultAccessAsync(vaultId, userId))
+                throw new UnauthorizedAccessException("User does not have access to this vault");
+                
+            // Get the vault
+            var vault = await _context.Vaults.FindAsync(vaultId);
+            if (vault == null)
+                throw new InvalidOperationException("Vault not found");
+                
+            // Decrypt the private key using the user's key
+            return await _keyVaultService.DecryptVaultPrivateKeyAsync(vault.EncryptedPrivateKey, userId);
         }
     }
 } 

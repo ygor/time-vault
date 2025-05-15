@@ -33,6 +33,11 @@ namespace TimeVault.Infrastructure.Services
             if (!await _vaultService.HasVaultAccessAsync(vaultId, userId))
                 return null; // Return null explicitly instead of empty message
 
+            // Get the vault to access its public key
+            var vault = await _context.Vaults.FindAsync(vaultId);
+            if (vault == null)
+                return null;
+
             var message = new Message
             {
                 Id = Guid.NewGuid(),
@@ -45,41 +50,28 @@ namespace TimeVault.Infrastructure.Services
             // If an unlock time is provided, encrypt the message
             if (unlockDateTime.HasValue)
             {
-                // Use either traditional AES encryption or drand-based tlock encryption
-                // based on configuration or other requirements
+                // Always use drand-based tlock encryption for all messages
                 
-                // Check if we should use tlock (based on configuration and unlock time being far enough in the future)
-                var shouldUseTlock = unlockDateTime.Value > DateTime.UtcNow.AddMinutes(5);
+                // Calculate the drand round for the unlock time
+                var drandRound = await _drandService.CalculateRoundForTimeAsync(unlockDateTime.Value);
                 
-                if (shouldUseTlock)
-                {
-                    // Calculate the drand round for the unlock time
-                    var drandRound = await _drandService.CalculateRoundForTimeAsync(unlockDateTime.Value);
-                    
-                    // Get the public key for tlock encryption
-                    var tlockPublicKey = await _drandService.GetPublicKeyAsync();
-                    
-                    // Encrypt the content using tlock
-                    var encryptedContent = await _drandService.EncryptWithTlockAsync(content, drandRound);
-                    
-                    // Store the encrypted content and tlock metadata
-                    message.Content = ""; // Empty string instead of null
-                    message.EncryptedContent = encryptedContent;
-                    message.IsEncrypted = true;
-                    message.IsTlockEncrypted = true;
-                    message.DrandRound = drandRound;
-                    message.TlockPublicKey = tlockPublicKey;
-                    message.UnlockDateTime = unlockDateTime;
-                }
-                else
-                {
-                    // Use standard AES encryption for shorter time periods
-                    message.EncryptedContent = EncryptContent(content);
-                    message.Content = ""; // Use empty string instead of null
-                    message.IsEncrypted = true;
-                    message.IsTlockEncrypted = false;
-                    message.UnlockDateTime = unlockDateTime;
-                }
+                // Get the public key for tlock encryption
+                var tlockPublicKey = await _drandService.GetPublicKeyAsync();
+                
+                // Encrypt the content using tlock with the vault's public key
+                var encryptedContent = await _drandService.EncryptWithTlockAndVaultKeyAsync(
+                    content, 
+                    drandRound, 
+                    vault.PublicKey);
+                
+                // Store the encrypted content and tlock metadata
+                message.Content = ""; // Empty string instead of null
+                message.EncryptedContent = encryptedContent;
+                message.IsEncrypted = true;
+                message.IsTlockEncrypted = true;
+                message.DrandRound = drandRound;
+                message.TlockPublicKey = tlockPublicKey;
+                message.UnlockDateTime = unlockDateTime;
             }
             else
             {
@@ -112,7 +104,7 @@ namespace TimeVault.Infrastructure.Services
             // Handle encrypted content if unlock time has passed
             if (message.IsEncrypted && message.UnlockDateTime.HasValue && message.UnlockDateTime <= DateTime.UtcNow)
             {
-                await UnlockMessageInternalAsync(message);
+                await UnlockMessageInternalAsync(message, userId);
                 await _context.SaveChangesAsync();
             }
 
@@ -133,7 +125,7 @@ namespace TimeVault.Infrastructure.Services
             var now = DateTime.UtcNow;
             foreach (var message in messages.Where(m => m.IsEncrypted && m.UnlockDateTime.HasValue && m.UnlockDateTime <= now))
             {
-                await UnlockMessageInternalAsync(message);
+                await UnlockMessageInternalAsync(message, userId);
             }
 
             await _context.SaveChangesAsync();
@@ -154,62 +146,18 @@ namespace TimeVault.Infrastructure.Services
             if (!await _vaultService.CanEditVaultAsync(message.VaultId, userId))
                 return false;
 
-            // If the message is already unlocked, it can't be re-encrypted
-            if (!message.IsEncrypted)
-            {
-                message.Title = title;
-                message.Content = content;
-                message.UnlockDateTime = unlockDateTime;
-                
-                await _context.SaveChangesAsync();
-                return true;
-            }
+            // Get the vault to access its public key
+            var vault = await _context.Vaults.FindAsync(message.VaultId);
+            if (vault == null)
+                return false;
 
-            // If the message is still encrypted, we can update it
-            var isEncrypted = unlockDateTime.HasValue && unlockDateTime > DateTime.UtcNow;
+            // Check if we need to encrypt the message
+            var needsEncryption = unlockDateTime.HasValue && unlockDateTime > DateTime.UtcNow;
             
-            if (isEncrypted)
+            // If no encryption is needed or if unlock datetime is in the past
+            if (!needsEncryption)
             {
-                // Determine if we should use tlock or AES based on unlock time
-                var shouldUseTlock = unlockDateTime.Value > DateTime.UtcNow.AddMinutes(5);
-                
-                if (shouldUseTlock)
-                {
-                    // Calculate the drand round for the unlock time
-                    var drandRound = await _drandService.CalculateRoundForTimeAsync(unlockDateTime.Value);
-                    
-                    // Get the public key for tlock encryption
-                    var tlockPublicKey = await _drandService.GetPublicKeyAsync();
-                    
-                    // Encrypt the content using tlock
-                    var encryptedContent = await _drandService.EncryptWithTlockAsync(content, drandRound);
-                    
-                    // Update the message with new tlock data
-                    message.Title = title;
-                    message.Content = "";
-                    message.EncryptedContent = encryptedContent;
-                    message.IsEncrypted = true;
-                    message.IsTlockEncrypted = true;
-                    message.DrandRound = drandRound;
-                    message.TlockPublicKey = tlockPublicKey;
-                    message.UnlockDateTime = unlockDateTime;
-                }
-                else
-                {
-                    // Use standard AES encryption
-                    message.Title = title;
-                    message.EncryptedContent = EncryptContent(content);
-                    message.Content = "";
-                    message.IsEncrypted = true;
-                    message.IsTlockEncrypted = false;
-                    message.DrandRound = null;
-                    message.TlockPublicKey = null;
-                    message.UnlockDateTime = unlockDateTime;
-                }
-            }
-            else
-            {
-                // No encryption needed
+                // Update without encryption
                 message.Title = title;
                 message.Content = content;
                 message.EncryptedContent = ""; // Use empty string instead of null
@@ -218,7 +166,34 @@ namespace TimeVault.Infrastructure.Services
                 message.DrandRound = null;
                 message.TlockPublicKey = null;
                 message.UnlockDateTime = unlockDateTime;
+                
+                await _context.SaveChangesAsync();
+                return true;
             }
+            
+            // Encryption is needed
+            
+            // Calculate the drand round for the unlock time
+            var drandRound = await _drandService.CalculateRoundForTimeAsync(unlockDateTime.Value);
+                
+            // Get the public key for tlock encryption
+            var tlockPublicKey = await _drandService.GetPublicKeyAsync();
+                
+            // Encrypt the content using tlock with the vault's public key
+            var encryptedContent = await _drandService.EncryptWithTlockAndVaultKeyAsync(
+                content, 
+                drandRound, 
+                vault.PublicKey);
+                
+            // Update the message with tlock encryption
+            message.Title = title;
+            message.Content = "";
+            message.EncryptedContent = encryptedContent;
+            message.IsEncrypted = true;
+            message.IsTlockEncrypted = true;
+            message.DrandRound = drandRound;
+            message.TlockPublicKey = tlockPublicKey;
+            message.UnlockDateTime = unlockDateTime;
 
             await _context.SaveChangesAsync();
             return true;
@@ -284,7 +259,7 @@ namespace TimeVault.Infrastructure.Services
             if (!message.IsEncrypted || !message.UnlockDateTime.HasValue || message.UnlockDateTime > DateTime.UtcNow)
                 return message;
 
-            await UnlockMessageInternalAsync(message);
+            await UnlockMessageInternalAsync(message, userId);
             await _context.SaveChangesAsync();
 
             return message;
@@ -317,7 +292,7 @@ namespace TimeVault.Infrastructure.Services
             // Unlock all messages
             foreach (var message in unlockedMessages)
             {
-                await UnlockMessageInternalAsync(message);
+                await UnlockMessageInternalAsync(message, userId);
             }
 
             await _context.SaveChangesAsync();
@@ -325,92 +300,39 @@ namespace TimeVault.Infrastructure.Services
             return unlockedMessages;
         }
 
-        private string EncryptContent(string content)
-        {
-            if (string.IsNullOrEmpty(content))
-                return string.Empty; // Return empty string instead of null
-
-            using (var aes = Aes.Create())
-            {
-                // Generate a random key and IV for each message
-                aes.GenerateKey();
-                aes.GenerateIV();
-
-                // Save the Key and IV along with the encrypted data
-                // In a real app, you might want to protect these keys further
-                byte[] encryptedData;
-
-                using (var encryptor = aes.CreateEncryptor())
-                using (var ms = new System.IO.MemoryStream())
-                {
-                    using (var cs = new CryptoStream(ms, encryptor, CryptoStreamMode.Write))
-                    using (var sw = new System.IO.StreamWriter(cs))
-                    {
-                        sw.Write(content);
-                    }
-                    encryptedData = ms.ToArray();
-                }
-
-                // Format: base64(key):base64(iv):base64(encryptedData)
-                return Convert.ToBase64String(aes.Key) + ":" + 
-                       Convert.ToBase64String(aes.IV) + ":" + 
-                       Convert.ToBase64String(encryptedData);
-            }
-        }
-
-        private string DecryptContent(string encryptedContent)
-        {
-            if (string.IsNullOrEmpty(encryptedContent))
-                return string.Empty; // Return empty string instead of null
-
-            var parts = encryptedContent.Split(':');
-            if (parts.Length != 3)
-                return string.Empty; // Return empty string instead of null
-
-            try
-            {
-                var key = Convert.FromBase64String(parts[0]);
-                var iv = Convert.FromBase64String(parts[1]);
-                var data = Convert.FromBase64String(parts[2]);
-
-                using (var aes = Aes.Create())
-                {
-                    aes.Key = key;
-                    aes.IV = iv;
-
-                    using (var decryptor = aes.CreateDecryptor())
-                    using (var ms = new System.IO.MemoryStream(data))
-                    using (var cs = new CryptoStream(ms, decryptor, CryptoStreamMode.Read))
-                    using (var sr = new System.IO.StreamReader(cs))
-                    {
-                        return sr.ReadToEnd();
-                    }
-                }
-            }
-            catch
-            {
-                return "[Error: Could not decrypt message]";
-            }
-        }
-
-        private async Task UnlockMessageInternalAsync(Message message)
+        private async Task UnlockMessageInternalAsync(Message message, Guid userId)
         {
             if (!message.IsEncrypted || string.IsNullOrEmpty(message.EncryptedContent))
                 return;
 
             try
             {
-                if (message.IsTlockEncrypted && message.DrandRound.HasValue)
+                // With our update, all encrypted messages should use tlock/drand encryption
+                if (message.DrandRound.HasValue)
                 {
                     // Attempt to decrypt using tlock
                     var isRoundAvailable = await _drandService.IsRoundAvailableAsync(message.DrandRound.Value);
                     
                     if (isRoundAvailable)
                     {
-                        // Decrypt using tlock and the drand round
-                        message.Content = await _drandService.DecryptWithTlockAsync(
-                            message.EncryptedContent, 
-                            message.DrandRound.Value);
+                        try
+                        {
+                            // Get the vault's private key for decryption
+                            var vaultPrivateKey = await _vaultService.GetVaultPrivateKeyAsync(message.VaultId, userId);
+                            
+                            // Decrypt using tlock and the vault's private key
+                            message.Content = await _drandService.DecryptWithTlockAndVaultKeyAsync(
+                                message.EncryptedContent, 
+                                message.DrandRound.Value,
+                                vaultPrivateKey);
+                        }
+                        catch (Exception ex)
+                        {
+                            // If vault-specific decryption fails, try legacy decryption
+                            message.Content = await _drandService.DecryptWithTlockAsync(
+                                message.EncryptedContent, 
+                                message.DrandRound.Value);
+                        }
                         
                         message.EncryptedContent = ""; // Use empty string instead of null
                         message.IsEncrypted = false;
@@ -419,16 +341,17 @@ namespace TimeVault.Infrastructure.Services
                 }
                 else
                 {
-                    // Decrypt using standard AES
-                    message.Content = DecryptContent(message.EncryptedContent);
+                    // For backward compatibility with messages that might have been encrypted with AES
+                    // This block should only run for legacy data from before the migration to exclusive drand usage
+                    message.Content = "[This message was encrypted with a deprecated method]";
                     message.EncryptedContent = ""; // Use empty string instead of null
                     message.IsEncrypted = false;
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 await Task.Run(() => {
-                    message.Content = "[Error: Could not decrypt message]";
+                    message.Content = $"[Error: Could not decrypt message: {ex.Message}]";
                     message.EncryptedContent = ""; // Use empty string instead of null
                     message.IsEncrypted = false;
                     message.IsTlockEncrypted = false;

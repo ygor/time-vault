@@ -17,5 +17,6 @@ namespace TimeVault.Core.Services.Interfaces
         Task<bool> RevokeVaultShareAsync(Guid vaultId, Guid ownerUserId, Guid targetUserId);
         Task<bool> HasVaultAccessAsync(Guid vaultId, Guid userId);
         Task<bool> CanEditVaultAsync(Guid vaultId, Guid userId);
+        Task<string> GetVaultPrivateKeyAsync(Guid vaultId, Guid userId);
     }
 } 

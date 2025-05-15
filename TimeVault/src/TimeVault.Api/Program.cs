@@ -47,6 +47,7 @@ builder.Services.AddAutoMapper(cfg =>
 // Register Services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IVaultService, VaultService>();
+builder.Services.AddScoped<IKeyVaultService, KeyVaultService>();
 builder.Services.AddScoped<IDrandService, DrandService>();
 builder.Services.AddScoped<IMessageService, MessageService>();
 
