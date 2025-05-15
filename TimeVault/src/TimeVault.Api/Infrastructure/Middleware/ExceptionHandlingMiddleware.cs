@@ -1,10 +1,12 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Text.Json;
 using System.Threading.Tasks;
+using TimeVault.Api.Infrastructure.Common;
 
 namespace TimeVault.Api.Infrastructure.Middleware
 {
@@ -27,69 +29,74 @@ namespace TimeVault.Api.Infrastructure.Middleware
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "An unhandled exception occurred during request processing");
                 await HandleExceptionAsync(context, ex);
             }
         }
 
-        private async Task HandleExceptionAsync(HttpContext context, Exception exception)
+        private static async Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
-            var statusCode = HttpStatusCode.InternalServerError;
-            var response = new ErrorResponse
+            context.Response.ContentType = "application/json";
+            
+            var response = exception switch
             {
-                Title = "An error occurred while processing your request.",
-                Status = (int)statusCode
+                ValidationException validationEx => HandleValidationException(validationEx, context),
+                UnauthorizedAccessException _ => HandleUnauthorizedAccessException(context),
+                // Add more specific exception types as needed
+                _ => HandleUnknownException(exception, context)
             };
 
-            if (exception is ValidationException validationException)
-            {
-                statusCode = HttpStatusCode.BadRequest;
-                response.Title = "One or more validation errors occurred.";
-                response.Status = (int)statusCode;
-                response.Errors = new Dictionary<string, List<string>>();
-
-                foreach (var error in validationException.Errors)
-                {
-                    var propertyName = error.PropertyName;
-                    var errorMessage = error.ErrorMessage;
-
-                    if (!response.Errors.ContainsKey(propertyName))
-                    {
-                        response.Errors[propertyName] = new List<string>();
-                    }
-
-                    response.Errors[propertyName].Add(errorMessage);
-                }
-            }
-            else
-            {
-                _logger.LogError(exception, "An unhandled exception occurred.");
-            }
-
-            context.Response.ContentType = "application/json";
-            context.Response.StatusCode = (int)statusCode;
-
-            var jsonResponse = JsonSerializer.Serialize(response, new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            });
-
-            await context.Response.WriteAsync(jsonResponse);
+            var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonSerializerPolicy.CamelCase };
+            var json = JsonSerializer.Serialize(response, options);
+            
+            await context.Response.WriteAsync(json);
         }
 
-        private class ErrorResponse
+        private static Result HandleValidationException(ValidationException exception, HttpContext context)
         {
-            public string Title { get; set; }
-            public int Status { get; set; }
-            public Dictionary<string, List<string>> Errors { get; set; }
+            context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+            
+            var errors = new List<string>();
+            foreach (var error in exception.Errors)
+            {
+                errors.Add(error.ErrorMessage);
+            }
+            
+            return Result.ValidationFailed(errors);
+        }
+
+        private static Result HandleUnauthorizedAccessException(HttpContext context)
+        {
+            context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
+            return Result.Failure("You are not authorized to access this resource");
+        }
+
+        private static Result HandleUnknownException(Exception exception, HttpContext context)
+        {
+            context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+            return Result.Failure("An unexpected error occurred");
         }
     }
 
-    // Extension method to add the middleware to the HTTP request pipeline
     public static class ExceptionHandlingMiddlewareExtensions
     {
         public static IApplicationBuilder UseExceptionHandling(this IApplicationBuilder builder)
         {
             return builder.UseMiddleware<ExceptionHandlingMiddleware>();
+        }
+    }
+
+    // Helper class to ensure JSON property names are camelCase
+    public class JsonSerializerPolicy : JsonNamingPolicy
+    {
+        public static new JsonNamingPolicy CamelCase => new JsonSerializerPolicy();
+
+        public override string ConvertName(string name)
+        {
+            if (string.IsNullOrEmpty(name) || !char.IsUpper(name[0]))
+                return name;
+
+            return char.ToLowerInvariant(name[0]) + name.Substring(1);
         }
     }
 } 

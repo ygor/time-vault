@@ -1,4 +1,3 @@
-using FluentValidation;
 using MediatR;
 using System;
 using System.Threading;
@@ -12,14 +11,6 @@ namespace TimeVault.Api.Features.Auth
         public class Command : IRequest<RefreshTokenResult>
         {
             public string Token { get; set; }
-        }
-
-        public class Validator : AbstractValidator<Command>
-        {
-            public Validator()
-            {
-                RuleFor(x => x.Token).NotEmpty();
-            }
         }
 
         public class Handler : IRequestHandler<Command, RefreshTokenResult>

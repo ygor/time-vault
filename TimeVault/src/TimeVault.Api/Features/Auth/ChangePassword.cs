@@ -1,4 +1,3 @@
-using FluentValidation;
 using MediatR;
 using System;
 using System.Threading;
@@ -14,16 +13,6 @@ namespace TimeVault.Api.Features.Auth
             public Guid UserId { get; set; }
             public string CurrentPassword { get; set; }
             public string NewPassword { get; set; }
-        }
-
-        public class Validator : AbstractValidator<Command>
-        {
-            public Validator()
-            {
-                RuleFor(x => x.UserId).NotEmpty();
-                RuleFor(x => x.CurrentPassword).NotEmpty();
-                RuleFor(x => x.NewPassword).NotEmpty().MinimumLength(6).MaximumLength(100);
-            }
         }
 
         public class Handler : IRequestHandler<Command, ChangePasswordResult>

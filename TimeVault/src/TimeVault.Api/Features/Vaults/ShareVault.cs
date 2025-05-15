@@ -1,4 +1,3 @@
-using FluentValidation;
 using MediatR;
 using System;
 using System.Threading;
@@ -15,16 +14,6 @@ namespace TimeVault.Api.Features.Vaults
             public Guid OwnerUserId { get; set; }
             public Guid TargetUserId { get; set; }
             public bool CanEdit { get; set; }
-        }
-
-        public class Validator : AbstractValidator<Command>
-        {
-            public Validator()
-            {
-                RuleFor(x => x.VaultId).NotEmpty().WithMessage("Vault ID is required");
-                RuleFor(x => x.OwnerUserId).NotEmpty().WithMessage("Owner User ID is required");
-                RuleFor(x => x.TargetUserId).NotEmpty().WithMessage("Target User ID is required");
-            }
         }
 
         public class Handler : IRequestHandler<Command, bool>

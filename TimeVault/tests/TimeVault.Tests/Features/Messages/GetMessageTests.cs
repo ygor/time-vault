@@ -7,7 +7,7 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using TimeVault.Api.Features.Messages;
-using TimeVault.Api.Infrastructure.Mapping;
+using TimeVault.Api.Features.Messages.Mapping;
 using TimeVault.Core.Services.Interfaces;
 using TimeVault.Domain.Entities;
 using Xunit;
@@ -24,10 +24,10 @@ namespace TimeVault.Tests.Features.Messages
 
         public GetMessageTests()
         {
-            // Set up AutoMapper with real mapping profile
+            // Set up AutoMapper with feature-specific mapping profile
             var mapperConfig = new MapperConfiguration(cfg =>
             {
-                cfg.AddProfile(new MappingProfile());
+                cfg.AddProfile(new MessagesMappingProfile());
             });
             _mapper = mapperConfig.CreateMapper();
 

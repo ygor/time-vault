@@ -7,7 +7,9 @@ using Microsoft.OpenApi.Models;
 using System.Reflection;
 using System.Text;
 using TimeVault.Api.Infrastructure.Behaviors;
-using TimeVault.Api.Infrastructure.Mapping;
+using TimeVault.Api.Features.Auth.Mapping;
+using TimeVault.Api.Features.Messages.Mapping;
+using TimeVault.Api.Features.Vaults.Mapping;
 using TimeVault.Api.Infrastructure.Middleware;
 using TimeVault.Core.Services.Interfaces;
 using TimeVault.Infrastructure.Data;
@@ -33,8 +35,14 @@ builder.Services.AddMediatR(cfg =>
 // Add FluentValidation
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
-// Add AutoMapper
-builder.Services.AddAutoMapper(typeof(MappingProfile).Assembly);
+// Add AutoMapper with feature-specific profiles
+builder.Services.AddAutoMapper(cfg =>
+{
+    // Register feature-specific mapping profiles
+    cfg.AddProfile<AuthMappingProfile>();
+    cfg.AddProfile<MessagesMappingProfile>();
+    cfg.AddProfile<VaultsMappingProfile>();
+});
 
 // Register Services
 builder.Services.AddScoped<IAuthService, AuthService>();
