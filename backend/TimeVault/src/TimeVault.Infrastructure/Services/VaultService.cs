@@ -61,26 +61,28 @@ namespace TimeVault.Infrastructure.Services
 
         public async Task<Vault?> GetVaultByIdAsync(Guid vaultId, Guid userId)
         {
-            // Check if user is the owner
+            // Check if user is the owner or has shared access
             var vault = await _context.Vaults
                 .Include(v => v.Messages)
+                .Include(v => v.SharedWith)
+                    .ThenInclude(vs => vs.User)
+                .Include(v => v.Owner)
                 .FirstOrDefaultAsync(v => v.Id == vaultId);
 
             if (vault == null)
-                return null; // Return null explicitly
+                return null; // Vault not found
 
             if (vault.OwnerId == userId)
-                return vault;
+                return vault; // User is the owner, return vault
 
             // If not owner, check if vault is shared with the user
-            var isShared = await _context.VaultShares
-                .AnyAsync(vs => vs.VaultId == vaultId && vs.UserId == userId);
+            var isShared = vault.SharedWith.Any(vs => vs.UserId == userId);
 
             if (isShared)
-                return vault;
+                return vault; // Vault is shared with user, return vault
 
             // User has no access
-            return null; // Return null explicitly
+            throw new UnauthorizedAccessException("User does not have access to this vault");
         }
 
         public async Task<IEnumerable<Vault>> GetUserVaultsAsync(Guid userId)
@@ -145,14 +147,19 @@ namespace TimeVault.Infrastructure.Services
 
         public async Task<bool> ShareVaultAsync(Guid vaultId, Guid ownerUserId, Guid targetUserId, bool canEdit)
         {
-            var vault = await _context.Vaults.FindAsync(vaultId);
+            // Load the vault with its relationships
+            var vault = await _context.Vaults
+                .Include(v => v.Owner)
+                .Include(v => v.SharedWith)
+                .ThenInclude(vs => vs.User)
+                .FirstOrDefaultAsync(v => v.Id == vaultId);
+                
             if (vault == null || vault.OwnerId != ownerUserId)
                 return false;
 
             // Check if vault is already shared with this user
-            var existingShare = await _context.VaultShares
-                .FirstOrDefaultAsync(vs => vs.VaultId == vaultId && vs.UserId == targetUserId);
-
+            var existingShare = vault.SharedWith.FirstOrDefault(vs => vs.UserId == targetUserId);
+            
             var now = DateTime.UtcNow;
             
             if (existingShare != null)
@@ -164,17 +171,27 @@ namespace TimeVault.Infrastructure.Services
                 return true;
             }
 
+            // Get target user
+            var targetUser = await _context.Users.FindAsync(targetUserId);
+            if (targetUser == null)
+                return false;
+
             // Create new share
             var share = new VaultShare
             {
                 Id = Guid.NewGuid(),
                 VaultId = vaultId,
                 UserId = targetUserId,
+                User = targetUser,
+                Vault = vault,
                 CreatedAt = now,
                 UpdatedAt = now,
                 CanEdit = canEdit
             };
 
+            // Add the share to the vault's collection explicitly
+            vault.SharedWith.Add(share);
+            
             await _context.VaultShares.AddAsync(share);
             await _context.SaveChangesAsync();
 
@@ -245,6 +262,12 @@ namespace TimeVault.Infrastructure.Services
                 
             // Decrypt the private key using the user's key
             return await _keyVaultService.DecryptVaultPrivateKeyAsync(vault.EncryptedPrivateKey, userId);
+        }
+
+        // New method to check if a vault exists without checking permissions
+        public async Task<bool> VaultExistsAsync(Guid vaultId)
+        {
+            return await _context.Vaults.AnyAsync(v => v.Id == vaultId);
         }
     }
 } 

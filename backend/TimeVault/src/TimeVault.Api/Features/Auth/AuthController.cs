@@ -29,7 +29,7 @@ namespace TimeVault.Api.Features.Auth
             var result = await _mediator.Send(command);
 
             if (!result.Success)
-                return Unauthorized(new { error = result.Error });
+                return BadRequest(new { error = result.Error });
 
             return Ok(result);
         }

@@ -35,8 +35,13 @@ namespace TimeVault.Infrastructure.Services
         {
             _logger.LogInformation("Login attempt for email: {Email}", email);
             
-            var user = await _context.Users.FirstOrDefaultAsync(u => 
-                u.Email.ToLower() == email.ToLower());
+            // Get all users (since there should be few, this is a simple approach that avoids 
+            // PostgreSQL case sensitivity issues)
+            var allUsers = await _context.Users.ToListAsync();
+            
+            // Perform case-insensitive email check in memory
+            var user = allUsers.FirstOrDefault(u => 
+                string.Equals(u.Email, email, StringComparison.OrdinalIgnoreCase));
 
             if (user == null)
             {
@@ -65,7 +70,12 @@ namespace TimeVault.Infrastructure.Services
         {
             _logger.LogInformation("Registration attempt for email: {Email}", email);
             
-            if (await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower()))
+            // Get all users to check for email match in memory
+            var allUsers = await _context.Users.ToListAsync();
+            bool emailExists = allUsers.Any(u => 
+                string.Equals(u.Email, email, StringComparison.OrdinalIgnoreCase));
+                
+            if (emailExists)
             {
                 _logger.LogWarning("Registration failed: Email already registered: {Email}", email);
                 return (false, string.Empty, null, "Email already registered");
@@ -236,7 +246,12 @@ namespace TimeVault.Infrastructure.Services
         {
             _logger.LogInformation("Checking if admin user exists: {Email}", email);
             
-            if (await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower()))
+            // Get all users to check for email match in memory
+            var allUsers = await _context.Users.ToListAsync();
+            bool emailExists = allUsers.Any(u => 
+                string.Equals(u.Email, email, StringComparison.OrdinalIgnoreCase));
+                
+            if (emailExists)
             {
                 _logger.LogInformation("Admin user already exists: {Email}", email);
                 return false;  // User already exists

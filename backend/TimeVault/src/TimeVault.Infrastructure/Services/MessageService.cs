@@ -31,46 +31,60 @@ namespace TimeVault.Infrastructure.Services
         {
             try
             {
-                // Check if user has access to the vault
-                if (!await _vaultService.HasVaultAccessAsync(vaultId, userId))
-                    return null; // Return null explicitly instead of empty message
-
+                // Debug the inputs to the method
+                System.Diagnostics.Debug.WriteLine($"Creating message. Content length: {content?.Length ?? 0}, IsNull: {content == null}");
+                
                 // Get the vault to access its public key
                 var vault = await _context.Vaults.FindAsync(vaultId);
                 if (vault == null)
                     return null;
 
-                var now = DateTime.UtcNow;
+                // Check if user can edit the vault
+                if (!await _vaultService.CanEditVaultAsync(vaultId, userId))
+                    return null;
+
+                // Ensure title and content are not null
+                title = title ?? string.Empty;
+                content = content ?? string.Empty;
+
+                // Debug after null checks
+                System.Diagnostics.Debug.WriteLine($"After null checks. Content length: {content.Length}");
+
                 var message = new Message
                 {
                     Id = Guid.NewGuid(),
-                    Title = title ?? string.Empty,
+                    Title = title,
                     VaultId = vaultId,
                     SenderId = userId,
-                    CreatedAt = now,
-                    UpdatedAt = now,
-                    IsRead = false
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    IsRead = false,
+                    ReadAt = null
                 };
 
-                // If an unlock time is provided, encrypt the message
-                if (unlockDateTime.HasValue)
+                // Check if we need to encrypt the message
+                var needsEncryption = unlockDateTime.HasValue && unlockDateTime > DateTime.UtcNow;
+
+                if (needsEncryption)
                 {
-                    // Always use drand-based tlock encryption for all messages
+                    System.Diagnostics.Debug.WriteLine($"Message needs encryption. Content to encrypt length: {content.Length}");
                     
                     // Calculate the drand round for the unlock time
-                    var drandRound = await _drandService.CalculateRoundForTimeAsync(unlockDateTime.Value);
+                    var drandRound = await _drandService.CalculateRoundForTimeAsync(unlockDateTime.GetValueOrDefault());
                     
                     // Get the public key for tlock encryption
                     var tlockPublicKey = await _drandService.GetPublicKeyAsync();
                     
                     // Encrypt the content using tlock with the vault's public key
                     var encryptedContent = await _drandService.EncryptWithTlockAndVaultKeyAsync(
-                        content ?? string.Empty, 
+                        content, 
                         drandRound, 
                         vault.PublicKey);
                     
-                    // Store the encrypted content and tlock metadata
-                    message.Content = string.Empty; // Empty string instead of null
+                    System.Diagnostics.Debug.WriteLine($"Encrypted content length: {encryptedContent?.Length ?? 0}");
+                    
+                    // Set the encrypted message properties
+                    message.Content = string.Empty; // Explicitly set to empty string, not null
                     message.EncryptedContent = encryptedContent;
                     message.IsEncrypted = true;
                     message.IsTlockEncrypted = true;
@@ -80,21 +94,39 @@ namespace TimeVault.Infrastructure.Services
                 }
                 else
                 {
-                    // No encryption needed
-                    message.Content = content ?? string.Empty;
-                    message.EncryptedContent = string.Empty; // Use empty string instead of null
+                    // No encryption needed or unlock time is in the past
+                    System.Diagnostics.Debug.WriteLine($"Message will not be encrypted. Content length: {content.Length}");
+                    message.Content = content; // Store content directly
+                    message.EncryptedContent = string.Empty;
                     message.IsEncrypted = false;
                     message.IsTlockEncrypted = false;
+                    message.UnlockTime = unlockDateTime;
                 }
 
                 await _context.Messages.AddAsync(message);
                 await _context.SaveChangesAsync();
-
-                return message;
+                
+                // Verify message was saved correctly
+                var savedMessage = await _context.Messages.FindAsync(message.Id);
+                System.Diagnostics.Debug.WriteLine($"Saved message ID: {savedMessage?.Id}. Content length: {savedMessage?.Content?.Length ?? 0}, IsEncrypted: {savedMessage?.IsEncrypted}");
+                
+                if (savedMessage != null && !savedMessage.IsEncrypted && string.IsNullOrEmpty(savedMessage.Content)) {
+                    System.Diagnostics.Debug.WriteLine("WARNING: Non-encrypted message has empty content!");
+                    
+                    // If the content was not saved correctly, manually update it
+                    if (savedMessage.Content == null || savedMessage.Content.Length == 0) {
+                        savedMessage.Content = content;
+                        await _context.SaveChangesAsync();
+                        System.Diagnostics.Debug.WriteLine($"FIXED: Updated message content. New length: {savedMessage.Content?.Length ?? 0}");
+                    }
+                }
+                
+                return savedMessage; // Return the message retrieved from the database
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 // Log the exception in a real system
+                System.Diagnostics.Debug.WriteLine($"Error creating message: {ex.Message}");
                 return null;
             }
         }
@@ -334,6 +366,9 @@ namespace TimeVault.Infrastructure.Services
         {
             try
             {
+                // Debug logging
+                System.Diagnostics.Debug.WriteLine($"GetUnlockedMessagesAsync called for user {userId}");
+                
                 // Get all vaults the user has access to
                 var userVaults = await _context.Vaults
                     .Where(v => v.OwnerId == userId)
@@ -345,99 +380,224 @@ namespace TimeVault.Infrastructure.Services
                     .Select(vs => vs.VaultId)
                     .ToListAsync();
 
-                var allAccessibleVaultIds = userVaults.Concat(sharedVaults).Distinct();
+                var allAccessibleVaultIds = userVaults.Concat(sharedVaults).Distinct().ToList();
+                
+                System.Diagnostics.Debug.WriteLine($"User has access to {allAccessibleVaultIds.Count} vaults");
 
-                // Get messages that should be unlocked now
                 var now = DateTime.UtcNow;
-                var unlockedMessages = await _context.Messages
-                    .Where(m => allAccessibleVaultIds.Contains(m.VaultId) &&
-                                m.IsEncrypted &&
-                                m.UnlockTime.HasValue &&
-                                m.UnlockTime <= now)
+                
+                // Get all potential messages user has access to
+                var accessibleMessages = await _context.Messages
+                    .Where(m => allAccessibleVaultIds.Contains(m.VaultId))
                     .ToListAsync();
-
-                // Unlock all messages
-                foreach (var message in unlockedMessages)
+                
+                System.Diagnostics.Debug.WriteLine($"Found {accessibleMessages.Count} total accessible messages");
+                
+                // Initialize a list to store properly unlocked messages
+                var unlockedMessages = new List<Message>();
+                
+                // First, add all non-encrypted messages directly
+                var nonEncryptedMessages = accessibleMessages
+                    .Where(m => !m.IsEncrypted && !string.IsNullOrEmpty(m.Content))
+                    .ToList();
+                
+                System.Diagnostics.Debug.WriteLine($"Found {nonEncryptedMessages.Count} non-encrypted messages with content");
+                unlockedMessages.AddRange(nonEncryptedMessages);
+                
+                // Get messages that should be unlocked based on their unlock time
+                var encryptedButShouldBeUnlocked = accessibleMessages
+                    .Where(m => m.IsEncrypted && m.UnlockTime.HasValue && m.UnlockTime <= now)
+                    .ToList();
+                
+                System.Diagnostics.Debug.WriteLine($"Found {encryptedButShouldBeUnlocked.Count} encrypted messages that are due to be unlocked");
+                
+                // Process encrypted messages that should be unlocked
+                foreach (var message in encryptedButShouldBeUnlocked)
                 {
-                    await UnlockMessageInternalAsync(message, userId);
+                    // Create a clone of the message to avoid modifying the original if decryption fails
+                    var messageCopy = new Message
+                    {
+                        Id = message.Id,
+                        Title = message.Title,
+                        Content = message.Content,
+                        EncryptedContent = message.EncryptedContent,
+                        IsEncrypted = message.IsEncrypted,
+                        IsTlockEncrypted = message.IsTlockEncrypted,
+                        UnlockTime = message.UnlockTime,
+                        VaultId = message.VaultId,
+                        CreatedAt = message.CreatedAt,
+                        UpdatedAt = message.UpdatedAt,
+                        SenderId = message.SenderId,
+                        DrandRound = message.DrandRound,
+                        PublicKeyUsed = message.PublicKeyUsed,
+                        IsRead = message.IsRead,
+                        ReadAt = message.ReadAt,
+                        IV = message.IV,
+                        EncryptedKey = message.EncryptedKey
+                    };
+                    
+                    try
+                    {
+                        // Try to unlock the message
+                        await UnlockMessageInternalAsync(messageCopy, userId);
+                        
+                        // Only if the message is now successfully decrypted, include it in results
+                        if (!messageCopy.IsEncrypted && !string.IsNullOrEmpty(messageCopy.Content) && 
+                            (messageCopy.Content == null || !messageCopy.Content.StartsWith("[Error:")))
+                        {
+                            unlockedMessages.Add(messageCopy);
+                            
+                            // Update the original message in the database to persist the decryption
+                            message.Content = messageCopy.Content;
+                            message.EncryptedContent = messageCopy.EncryptedContent;
+                            message.IsEncrypted = messageCopy.IsEncrypted;
+                            message.IsTlockEncrypted = messageCopy.IsTlockEncrypted;
+                            
+                            System.Diagnostics.Debug.WriteLine($"Successfully decrypted message {message.Id} with content length {message.Content?.Length ?? 0}");
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Message {message.Id} could not be properly decrypted. IsEncrypted: {messageCopy.IsEncrypted}, ContentEmpty: {string.IsNullOrEmpty(messageCopy.Content)}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log the exception and continue with the next message
+                        System.Diagnostics.Debug.WriteLine($"Error unlocking message {message.Id}: {ex.Message}");
+                    }
                 }
 
                 await _context.SaveChangesAsync();
+                
+                System.Diagnostics.Debug.WriteLine($"Returning {unlockedMessages.Count} truly unlocked messages");
 
+                // Return only the messages that are actually unlocked and do not contain error messages
                 return unlockedMessages;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 // Log the exception in a real system
+                System.Diagnostics.Debug.WriteLine($"Error getting unlocked messages: {ex.Message}");
                 return Enumerable.Empty<Message>();
             }
         }
 
         private async Task UnlockMessageInternalAsync(Message message, Guid userId)
         {
+            // If message is not encrypted or has no encrypted content, nothing to do
             if (!message.IsEncrypted || string.IsNullOrEmpty(message.EncryptedContent))
+            {
+                System.Diagnostics.Debug.WriteLine($"Message {message.Id} is not encrypted or has no encrypted content");
                 return;
+            }
 
             try
             {
-                // With our update, all encrypted messages should use tlock/drand encryption
+                System.Diagnostics.Debug.WriteLine($"Attempting to unlock message {message.Id}");
+                
+                // Use tlock/drand encryption for time-locked messages
                 if (message.DrandRound.HasValue)
                 {
-                    // Attempt to decrypt using tlock
+                    // Attempt to decrypt only if the round is available (i.e., time has passed)
                     var isRoundAvailable = await _drandService.IsRoundAvailableAsync(message.DrandRound.Value);
                     
                     if (isRoundAvailable)
                     {
+                        System.Diagnostics.Debug.WriteLine($"Drand round {message.DrandRound.Value} is available for decryption");
+                        
                         try
                         {
                             // Get the vault's private key for decryption
                             var vaultPrivateKey = await _vaultService.GetVaultPrivateKeyAsync(message.VaultId, userId);
                             
+                            if (string.IsNullOrEmpty(vaultPrivateKey))
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Failed to get vault private key for message {message.Id}");
+                                return;
+                            }
+                            
                             // Make sure DrandRound.Value is not null (should already be checked by HasValue)
                             var drandRound = message.DrandRound.GetValueOrDefault();
                             
                             // Decrypt using tlock and the vault's private key
-                            message.Content = await _drandService.DecryptWithTlockAndVaultKeyAsync(
+                            string decryptedContent = await _drandService.DecryptWithTlockAndVaultKeyAsync(
                                 message.EncryptedContent, 
                                 drandRound,
                                 vaultPrivateKey);
+                                
+                            // Check if the decryption actually worked (no error message)
+                            if (!string.IsNullOrEmpty(decryptedContent) && !decryptedContent.StartsWith("[Error:"))
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Successfully decrypted message {message.Id} with vault key. Content length: {decryptedContent.Length}");
+                                
+                                message.Content = decryptedContent;
+                                message.EncryptedContent = string.Empty;
+                                message.IsEncrypted = false;
+                                message.IsTlockEncrypted = false;
+                            }
+                            else
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Vault-specific decryption failed for message {message.Id}: {decryptedContent}");
+                                // Keep the message encrypted
+                            }
                         }
                         catch (Exception exception)
                         {
                             // Log the vault decryption error before trying legacy decryption
-                            System.Diagnostics.Debug.WriteLine($"Vault-specific decryption failed: {exception.Message}. Trying legacy decryption.");
+                            System.Diagnostics.Debug.WriteLine($"Vault-specific decryption exception for message {message.Id}: {exception.Message}. Trying legacy decryption.");
                             
-                            // If vault-specific decryption fails, try legacy decryption
-                            message.Content = await _drandService.DecryptWithTlockAsync(
-                                message.EncryptedContent, 
-                                message.DrandRound.Value);
+                            try
+                            {
+                                // If vault-specific decryption fails, try legacy decryption
+                                string decryptedContent = await _drandService.DecryptWithTlockAsync(
+                                    message.EncryptedContent, 
+                                    message.DrandRound.Value);
+                                    
+                                // Check if the decryption actually worked (no error message)
+                                if (!string.IsNullOrEmpty(decryptedContent) && !decryptedContent.StartsWith("[Error:"))
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"Successfully decrypted message {message.Id} with legacy method. Content length: {decryptedContent.Length}");
+                                    
+                                    message.Content = decryptedContent;
+                                    message.EncryptedContent = string.Empty;
+                                    message.IsEncrypted = false;
+                                    message.IsTlockEncrypted = false;
+                                }
+                                else
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"Legacy decryption failed for message {message.Id}: {decryptedContent}");
+                                    // Keep the message encrypted
+                                }
+                            }
+                            catch (Exception legacyEx)
+                            {
+                                // Both decryption methods failed, keep the message encrypted
+                                System.Diagnostics.Debug.WriteLine($"Both decryption methods failed for message {message.Id}. Legacy error: {legacyEx.Message}");
+                            }
                         }
-                        
-                        message.EncryptedContent = string.Empty; // Use empty string instead of null
-                        message.IsEncrypted = false;
-                        message.IsTlockEncrypted = false;
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Drand round {message.DrandRound.Value} is not yet available for message {message.Id}");
                     }
                 }
                 else
                 {
                     // For backward compatibility with messages that might have been encrypted with AES
-                    // This block should only run for legacy data from before the migration to exclusive drand usage
-                    message.Content = "[This message was encrypted with a deprecated method]";
-                    message.EncryptedContent = string.Empty; // Use empty string instead of null
-                    message.IsEncrypted = false;
+                    System.Diagnostics.Debug.WriteLine($"Message {message.Id} uses a legacy encryption method without drand round");
+                    
+                    // Only consider it successfully decrypted if we can properly handle it
+                    message.Content = "Message encrypted with legacy method";
+                    message.IsEncrypted = true; // Keep it marked as encrypted
                 }
             }
             catch (Exception exception)
             {
                 // Log the exception in a production environment
-                System.Diagnostics.Debug.WriteLine($"Exception while unlocking message: {exception.Message}");
+                System.Diagnostics.Debug.WriteLine($"Exception while unlocking message {message.Id}: {exception.Message}");
                 
-                await Task.Run(() => {
-                    message.Content = $"[Error: Could not decrypt message: {exception.Message}]";
-                    message.EncryptedContent = string.Empty; // Use empty string instead of null
-                    message.IsEncrypted = false;
-                    message.IsTlockEncrypted = false;
-                });
+                // Keep the message marked as encrypted
+                message.IsEncrypted = true;
             }
         }
     }

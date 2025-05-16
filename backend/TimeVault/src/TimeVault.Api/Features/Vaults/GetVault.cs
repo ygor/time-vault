@@ -50,6 +50,9 @@ namespace TimeVault.Api.Features.Vaults
                 vaultDto.CanEdit = vaultDto.IsOwner || 
                     await _vaultService.CanEditVaultAsync(request.VaultId, request.UserId);
                 
+                // Map the SharedWith collection
+                vaultDto.SharedWith = _mapper.Map<List<VaultShareDto>>(vault.SharedWith);
+                
                 return vaultDto;
             }
         }

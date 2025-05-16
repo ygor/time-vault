@@ -4,6 +4,10 @@ using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Threading.Tasks;
 using TimeVault.Api.Features.Vaults;
+using FluentValidation;
+using Microsoft.EntityFrameworkCore;
+using TimeVault.Infrastructure.Data;
+using System.Linq;
 
 namespace TimeVault.Api.Features.Vaults
 {
@@ -13,10 +17,12 @@ namespace TimeVault.Api.Features.Vaults
     public class VaultsController : ControllerBase
     {
         private readonly IMediator _mediator;
+        private readonly ApplicationDbContext _context;
 
-        public VaultsController(IMediator mediator)
+        public VaultsController(IMediator mediator, ApplicationDbContext context)
         {
             _mediator = mediator;
+            _context = context;
         }
 
         [HttpGet]
@@ -42,31 +48,52 @@ namespace TimeVault.Api.Features.Vaults
         [HttpGet("{id}")]
         public async Task<IActionResult> GetVault(Guid id)
         {
-            var query = new GetVault.Query
+            try 
             {
-                VaultId = id,
-                UserId = GetCurrentUserId()
-            };
+                var query = new GetVault.Query
+                {
+                    VaultId = id,
+                    UserId = GetCurrentUserId()
+                };
 
-            var result = await _mediator.Send(query);
-            if (result == null)
-                return NotFound();
+                var result = await _mediator.Send(query);
+                if (result == null)
+                {
+                    // Check if vault exists but user doesn't have access
+                    var vaultExists = await _context.Vaults.AnyAsync(v => v.Id == id);
+                    if (vaultExists)
+                        return Forbid();
+                    else
+                        return NotFound();
+                }
 
-            return Ok(result);
+                return Ok(result);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
+            }
         }
 
         [HttpPost]
         public async Task<IActionResult> CreateVault([FromBody] CreateVaultRequest request)
         {
-            var command = new CreateVault.Command
+            try
             {
-                UserId = GetCurrentUserId(),
-                Name = request.Name,
-                Description = request.Description
-            };
+                var command = new CreateVault.Command
+                {
+                    UserId = GetCurrentUserId(),
+                    Name = request.Name,
+                    Description = request.Description
+                };
 
-            var result = await _mediator.Send(command);
-            return CreatedAtAction(nameof(GetVault), new { id = result.Id }, result);
+                var result = await _mediator.Send(command);
+                return CreatedAtAction(nameof(GetVault), new { id = result.Id }, result);
+            }
+            catch (ValidationException ex)
+            {
+                return BadRequest(new { Success = false, Errors = ex.Errors.Select(e => e.ErrorMessage).ToList() });
+            }
         }
 
         [HttpPut("{id}")]
@@ -106,11 +133,20 @@ namespace TimeVault.Api.Features.Vaults
         [HttpPost("{id}/share")]
         public async Task<IActionResult> ShareVault(Guid id, [FromBody] ShareVaultRequest request)
         {
+            // First find the target user by email
+            var targetUser = await _context.Users.FirstOrDefaultAsync(u => 
+                u.Email.ToLower() == request.UserEmail.ToLower());
+            
+            if (targetUser == null)
+            {
+                return BadRequest(new { success = false, error = $"User with email {request.UserEmail} not found" });
+            }
+
             var command = new ShareVault.Command
             {
                 VaultId = id,
                 OwnerUserId = GetCurrentUserId(),
-                TargetUserId = request.UserId,
+                TargetUserId = targetUser.Id,
                 CanEdit = request.CanEdit
             };
 
@@ -133,7 +169,7 @@ namespace TimeVault.Api.Features.Vaults
 
             var result = await _mediator.Send(command);
             if (!result)
-                return BadRequest("Failed to revoke vault share, check that the vault exists and you are the owner.");
+                return NotFound(new { error = "Failed to revoke vault share. Either the vault doesn't exist, you are not the owner, or the share doesn't exist." });
 
             return Ok();
         }
@@ -159,7 +195,7 @@ namespace TimeVault.Api.Features.Vaults
 
     public class ShareVaultRequest
     {
-        public Guid UserId { get; set; }
+        public string UserEmail { get; set; } = string.Empty;
         public bool CanEdit { get; set; }
     }
 } 

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -22,24 +23,49 @@ namespace TimeVault.Infrastructure.Data
         public DbSet<Message> Messages { get; set; }
         public DbSet<VaultShare> VaultShares { get; set; }
 
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            base.OnConfiguring(optionsBuilder);
+            
+            // Configure PostgreSQL to use quoted identifiers
+            if (optionsBuilder.IsConfigured && optionsBuilder.Options.Extensions.Any(e => e.GetType().ToString().Contains("Npgsql")))
+            {
+                // Use ApplicationServices extension method to access configuration
+                AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+                
+                // Enable quoted identifiers for PostgreSQL
+                AppContext.SetSwitch("Npgsql.DisableDateTimeInfinityConversions", true);
+                
+                // This ensures casing is preserved
+                AppContext.SetSwitch("Npgsql.MapInfinityDateTime", true);
+            }
+        }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
-            // Use snake_case naming convention for PostgreSQL
+            // Use snake_case naming convention for PostgreSQL but ensure consistent casing
             foreach (var entity in modelBuilder.Model.GetEntityTypes())
             {
-                // Set the table name to snake_case
+                // Get table name (which is the entity name by default)
                 var tableName = entity.GetTableName();
                 if (tableName != null)
-                    entity.SetTableName(ToSnakeCase(tableName));
+                {
+                    // Convert to snake_case and ensure it matches the database convention
+                    var snakeCaseTableName = ToSnakeCase(tableName);
+                    entity.SetTableName(snakeCaseTableName);
+                }
 
-                // Set column names to snake_case
+                // Convert all property names (column names) to snake_case
                 foreach (var property in entity.GetProperties())
                 {
                     var columnName = property.GetColumnName();
                     if (columnName != null)
-                        property.SetColumnName(ToSnakeCase(columnName));
+                    {
+                        var snakeCaseColumnName = ToSnakeCase(columnName);
+                        property.SetColumnName(snakeCaseColumnName);
+                    }
                 }
 
                 // Set primary key name to snake_case

@@ -18,5 +18,6 @@ namespace TimeVault.Core.Services.Interfaces
         Task<bool> HasVaultAccessAsync(Guid vaultId, Guid userId);
         Task<bool> CanEditVaultAsync(Guid vaultId, Guid userId);
         Task<string> GetVaultPrivateKeyAsync(Guid vaultId, Guid userId);
+        Task<bool> VaultExistsAsync(Guid vaultId);
     }
 } 

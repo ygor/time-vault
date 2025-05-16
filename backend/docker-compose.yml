@@ -7,7 +7,7 @@ services:
       - "8081:80"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - ConnectionStrings__DefaultConnection=Host=postgres;Database=timevault;Username=postgres;Password=postgres;Port=5432;
+      - ConnectionStrings__DefaultConnection=Host=postgres;Database=timevault;Username=postgres;Password=postgres;Port=5432;Include Error Detail=true;
       - EF_USE_QUOTED_IDENTIFIERS=true 
       - EF_RESPECT_SNAKE_CASE=true
     depends_on:

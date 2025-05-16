@@ -1,6 +1,7 @@
 using AutoMapper;
 using TimeVault.Api.Features.Vaults;
 using TimeVault.Domain.Entities;
+using System.Collections.Generic;
 
 namespace TimeVault.Api.Features.Vaults.Mapping
 {
@@ -18,12 +19,14 @@ namespace TimeVault.Api.Features.Vaults.Mapping
                     src.Messages != null ? src.Messages.Count(m => !m.IsRead) : 0))
                 .ForMember(dest => dest.IsOwner, opt => opt.Ignore())
                 .ForMember(dest => dest.CanEdit, opt => opt.Ignore())
-                .ForMember(dest => dest.SharedWith, opt => opt.Ignore());
+                .ForMember(dest => dest.SharedWith, opt => opt.MapFrom(src => 
+                    src.SharedWith != null ? src.SharedWith : new List<VaultShare>()));
 
             // Map VaultShare entity to VaultShareDto
             CreateMap<VaultShare, VaultShareDto>()
                 .ForMember(dest => dest.Email, opt => opt.MapFrom(src => 
-                    src.User != null ? src.User.Email : string.Empty));
+                    src.User != null ? src.User.Email : string.Empty))
+                .ForMember(dest => dest.SharedAt, opt => opt.MapFrom(src => src.CreatedAt));
         }
     }
 } 

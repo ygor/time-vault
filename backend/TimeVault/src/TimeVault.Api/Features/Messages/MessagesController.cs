@@ -3,6 +3,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Threading.Tasks;
+using System.Linq;
+using System.Text.Json.Serialization;
+using FluentValidation;
 
 namespace TimeVault.Api.Features.Messages
 {
@@ -76,6 +79,17 @@ namespace TimeVault.Api.Features.Messages
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateMessage(Guid id, [FromBody] UpdateMessageRequest request)
         {
+            // Force the check for content length at the controller level, before any other processing
+            const int maxContentLength = 1000000; // 1 million characters
+            
+            Console.WriteLine($"Content length: {request.Content?.Length ?? 0} characters");
+            
+            if (request.Content != null && request.Content.Length >= maxContentLength)
+            {
+                Console.WriteLine($"Content exceeds maximum length of {maxContentLength}");
+                return BadRequest(new { Success = false, Errors = new[] { $"Content exceeds maximum allowed length of {maxContentLength} characters." } });
+            }
+
             var command = new UpdateMessage.Command
             {
                 MessageId = id,
@@ -85,11 +99,24 @@ namespace TimeVault.Api.Features.Messages
                 UnlockDateTime = request.UnlockDateTime
             };
 
-            var result = await _mediator.Send(command);
-            if (!result)
-                return NotFound();
+            try
+            {
+                var result = await _mediator.Send(command);
+                if (!result)
+                    return NotFound();
 
-            return NoContent();
+                return NoContent();
+            }
+            catch (ValidationException ex)
+            {
+                Console.WriteLine($"Validation exception: {ex.Message}");
+                return BadRequest(new { Success = false, Errors = ex.Errors.Select(e => e.ErrorMessage).ToArray() });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Unexpected exception: {ex.GetType().Name} - {ex.Message}");
+                return BadRequest(new { Success = false, Errors = new[] { "An unexpected error occurred while updating the message." } });
+            }
         }
 
         [HttpDelete("{id}")]
@@ -112,8 +139,25 @@ namespace TimeVault.Api.Features.Messages
         public async Task<IActionResult> GetUnlockedMessages()
         {
             var query = new GetUnlockedMessages.Query { UserId = GetCurrentUserId() };
-            var result = await _mediator.Send(query);
-            return Ok(result);
+            var messages = await _mediator.Send(query);
+            
+            // Debug information to understand what's happening
+            Console.WriteLine($"Retrieved {messages.Count} messages from service");
+            foreach (var message in messages)
+            {
+                Console.WriteLine($"Message ID: {message.Id}, Title: {message.Title}, IsLocked: {message.IsLocked}, IsEncrypted: {message.IsEncrypted}, UnlockTime: {message.UnlockDateTime}");
+            }
+            
+            // Explicitly filter out any locked messages before returning them
+            var unlockedMessages = messages.Where(m => !m.IsLocked).ToList();
+            
+            Console.WriteLine($"After filtering: {unlockedMessages.Count} messages");
+            foreach (var message in unlockedMessages)
+            {
+                Console.WriteLine($"Filtered Message ID: {message.Id}, Title: {message.Title}, IsLocked: {message.IsLocked}, IsEncrypted: {message.IsEncrypted}, UnlockTime: {message.UnlockDateTime}");
+            }
+            
+            return Ok(unlockedMessages);
         }
 
         [HttpPost("{id}/unlock")]
@@ -144,6 +188,14 @@ namespace TimeVault.Api.Features.Messages
         public string Title { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;
         public DateTime? UnlockDateTime { get; set; }
+
+        // For compatibility with the tests that use "UnlockTime"
+        [JsonPropertyName("unlockTime")]
+        public DateTime? UnlockTime 
+        { 
+            get => UnlockDateTime; 
+            set => UnlockDateTime = value; 
+        }
     }
 
     public class UpdateMessageRequest
@@ -151,5 +203,13 @@ namespace TimeVault.Api.Features.Messages
         public string Title { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;
         public DateTime? UnlockDateTime { get; set; }
+
+        // For compatibility with the tests that use "UnlockTime"
+        [JsonPropertyName("unlockTime")]
+        public DateTime? UnlockTime 
+        { 
+            get => UnlockDateTime; 
+            set => UnlockDateTime = value; 
+        }
     }
 } 
