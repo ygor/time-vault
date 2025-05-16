@@ -177,11 +177,9 @@ namespace TimeVault.Tests.Services
             });
             await _dbContext.SaveChangesAsync();
 
-            // Act
-            var vault = await _vaultService.GetVaultByIdAsync(vaultId, _testUserId);
-
-            // Assert
-            vault.Should().BeNull();
+            // Act & Assert
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(async () => 
+                await _vaultService.GetVaultByIdAsync(vaultId, _testUserId));
         }
 
         [Fact]

@@ -254,6 +254,7 @@ namespace TimeVault.Tests.Services
             // Arrange
             var messageId = Guid.NewGuid();
             var encryptedContent = "ENCRYPTED_CONTENT"; // Simulate encrypted content
+            var drandRound = 12345; // Mock drand round
             
             _dbContext.Messages.Add(new Message
             {
@@ -264,6 +265,8 @@ namespace TimeVault.Tests.Services
                 IV = "test-iv",
                 EncryptedKey = "test-key",
                 IsEncrypted = true,
+                IsTlockEncrypted = true,
+                DrandRound = drandRound,
                 CreatedAt = DateTime.UtcNow.AddDays(-1),
                 UpdatedAt = DateTime.UtcNow.AddDays(-1),
                 UnlockTime = DateTime.UtcNow.AddHours(-1), // Time has passed
@@ -275,10 +278,19 @@ namespace TimeVault.Tests.Services
 
             _mockVaultService.Setup(vs => vs.HasVaultAccessAsync(_testVaultId, _testUserId))
                 .ReturnsAsync(true);
-
-            // Mock the unlock functionality
-            _mockVaultService.Setup(vs => vs.HasVaultAccessAsync(_testVaultId, _testUserId))
+            
+            _mockVaultService.Setup(vs => vs.GetVaultPrivateKeyAsync(_testVaultId, _testUserId))
+                .ReturnsAsync("test-private-key");
+            
+            // Setup Drand service mock
+            _mockDrandService.Setup(ds => ds.IsRoundAvailableAsync(drandRound))
                 .ReturnsAsync(true);
+            
+            _mockDrandService.Setup(ds => ds.DecryptWithTlockAndVaultKeyAsync(
+                    encryptedContent, 
+                    drandRound, 
+                    "test-private-key"))
+                .ReturnsAsync("DECRYPTED_CONTENT");
 
             // Act
             var result = await _messageService.GetMessageByIdAsync(messageId, _testUserId);
