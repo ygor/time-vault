@@ -29,12 +29,16 @@ namespace TimeVault.Api.Infrastructure.Middleware
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An unhandled exception occurred during request processing");
+                _logger.LogError(ex, 
+                    "An unhandled exception occurred during request processing. Path: {Path}, Method: {Method}", 
+                    context.Request.Path, 
+                    context.Request.Method);
+                
                 await HandleExceptionAsync(context, ex);
             }
         }
 
-        private static async Task HandleExceptionAsync(HttpContext context, Exception exception)
+        private async Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
             context.Response.ContentType = "application/json";
             
@@ -49,10 +53,11 @@ namespace TimeVault.Api.Infrastructure.Middleware
             var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonSerializerPolicy.CamelCase };
             var json = JsonSerializer.Serialize(response, options);
             
+            _logger.LogDebug("Sending error response with status code {StatusCode}", context.Response.StatusCode);
             await context.Response.WriteAsync(json);
         }
 
-        private static Result HandleValidationException(ValidationException exception, HttpContext context)
+        private Result HandleValidationException(ValidationException exception, HttpContext context)
         {
             context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
             
@@ -60,20 +65,39 @@ namespace TimeVault.Api.Infrastructure.Middleware
             foreach (var error in exception.Errors)
             {
                 errors.Add(error.ErrorMessage);
+                _logger.LogDebug("Validation error: {PropertyName}: {ErrorMessage}", 
+                    error.PropertyName, error.ErrorMessage);
             }
             
+            _logger.LogInformation("Validation failed for request {Method} {Path} with {ErrorCount} errors", 
+                context.Request.Method, 
+                context.Request.Path, 
+                errors.Count);
+                
             return Result.ValidationFailed(errors);
         }
 
-        private static Result HandleUnauthorizedAccessException(HttpContext context)
+        private Result HandleUnauthorizedAccessException(HttpContext context)
         {
             context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
+            
+            _logger.LogWarning("Unauthorized access attempt for {Method} {Path}", 
+                context.Request.Method, 
+                context.Request.Path);
+                
             return Result.Failure("You are not authorized to access this resource");
         }
 
-        private static Result HandleUnknownException(Exception exception, HttpContext context)
+        private Result HandleUnknownException(Exception exception, HttpContext context)
         {
             context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+            
+            _logger.LogError(exception, 
+                "Unhandled exception for request {Method} {Path}: {ErrorMessage}", 
+                context.Request.Method, 
+                context.Request.Path, 
+                exception.Message);
+                
             return Result.Failure("An unexpected error occurred");
         }
     }

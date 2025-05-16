@@ -1,165 +1,156 @@
-# TimeVault API
+# TimeVault - Secure Time-Locked Messages
 
-TimeVault is a secure, time-based messaging application that allows users to create vaults and share encrypted messages that can only be accessed at specific dates and times.
+TimeVault is a secure platform for creating and sharing time-locked messages. This project consists of a .NET 7 backend API and a React/TypeScript frontend.
 
-## Table of Contents
+## Project Structure
 
-- [Key Features](#key-features)
-- [Technology Stack](#technology-stack)
-- [Solution Structure](#solution-structure)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Local Development](#local-development)
-  - [Running Tests](#running-tests)
-- [API Documentation](#api-documentation)
-- [Deployment](#deployment)
-  - [Azure Credentials Setup](#azure-credentials-setup)
-  - [Quick Deployment Steps](#quick-deployment-steps)
-  - [Detailed Deployment Guides](#detailed-deployment-guides)
-- [Environment Configuration](#environment-configuration)
-- [Authentication](#authentication)
-- [Additional Documentation](#additional-documentation)
-- [License](#license)
+- `/backend` - .NET 7 API with Entity Framework Core for PostgreSQL
+  - `/backend/TimeVault/tests` - Backend tests including unit, integration, and schema validation tests
+- `/frontend` - React + TypeScript + Vite frontend with TailwindCSS
+  - `/frontend/cypress` - Frontend UI and API integration tests
 
-## Key Features
+## Backend Setup
 
-- **Email-based Authentication**: Secure user authentication system based on email and password
-- **Encrypted Vaults**: Create and manage time-based message vaults
-- **Vault Sharing**: Share vaults with other users with specific permissions
-- **Scheduled Messages**: Set precise unlock dates for messages
-- **End-to-End Encryption**: Messages are encrypted before storage
-
-## Technology Stack
-
-- **Backend**: ASP.NET Core API with Clean Architecture
-- **Database**: Azure SQL Database with Entity Framework Core
-- **Authentication**: JWT-based authentication
-- **Encryption**: AES-256 for data encryption
-- **Infrastructure**: Azure App Service, Key Vault, Application Insights
-- **CI/CD**: GitHub Actions for automated deployments
-- **IaC**: Terraform for infrastructure provisioning
-
-## Solution Structure
-
-```
-TimeVault/
-├── src/
-│   ├── TimeVault.Api/           # ASP.NET Core API project
-│   ├── TimeVault.Core/          # Domain models and business logic
-│   ├── TimeVault.Infrastructure/ # External services implementation
-│   └── TimeVault.Persistence/   # Database context and repositories
-├── tests/
-│   ├── TimeVault.Api.Tests/     # API tests
-│   ├── TimeVault.Core.Tests/    # Domain logic tests
-│   └── TimeVault.Integration.Tests/ # Integration tests
-└── terraform/                  # Infrastructure as Code
-    ├── modules/                # Terraform modules
-    └── environments/           # Environment-specific configs
-```
-
-## Getting Started
-
-### Prerequisites
-
-- .NET 7.0 SDK or later
-- SQL Server or Azure SQL Database
-- Azure CLI (for deployment)
-- Terraform CLI (for infrastructure provisioning)
-
-### Local Development
-
-1. Clone the repository
-2. Set up the database connection string in `appsettings.Development.json`
-3. Run the migrations:
-   ```
-   cd src/TimeVault.Api
-   dotnet ef database update
-   ```
-4. Start the API:
-   ```
-   dotnet run
-   ```
-
-### Running Tests
+1. Make sure you have .NET 7 SDK installed
+2. Install PostgreSQL and create a database for the application
+3. Navigate to the backend directory:
 
 ```bash
+cd backend/TimeVault
+```
+
+4. Update the connection string in `appsettings.Development.json` to match your PostgreSQL settings
+5. Apply database migrations:
+
+```bash
+dotnet ef database update
+```
+
+6. Start the backend API:
+
+```bash
+dotnet run --project src/TimeVault.Api
+```
+
+The API will be available at http://localhost:5000
+
+## Frontend Setup
+
+1. Make sure you have Node.js and NPM installed
+2. Navigate to the frontend directory:
+
+```bash
+cd frontend
+```
+
+3. Install dependencies:
+
+```bash
+npm install
+```
+
+4. The `.env.development` file should already contain the API URL pointing to the backend
+5. Start the development server:
+
+```bash
+npm run dev
+```
+
+The frontend will be available at http://localhost:8080
+
+## API Integration
+
+The frontend has been updated to integrate with the backend API:
+
+1. Authentication uses the standard email/password flow
+2. Vault creation and management are integrated with the API
+3. Time-locked messages are stored and retrieved from the backend
+
+## Running Tests
+
+### Backend Tests
+
+```bash
+cd backend/TimeVault
 dotnet test
 ```
 
-## API Documentation
+### Integration Tests
 
-When running locally, API documentation is available at:
-- Swagger UI: `https://localhost:8080/swagger`
-- OpenAPI JSON: `https://localhost:8080/swagger/v1/swagger.json`
+```bash
+cd backend
+./test-integration.sh
+```
 
-See [API-ENDPOINTS.md](./API-ENDPOINTS.md) for a detailed overview of all available endpoints.
+### UI Tests
 
-## Deployment
+The project includes Cypress tests to validate the frontend integration with the backend API.
 
-### Azure Credentials Setup
+To run all UI tests:
 
-Before deploying, you'll need to set up the following Azure credentials as GitHub Secrets:
+```bash
+cd frontend
+npm test
+```
 
-1. **Create an Azure Service Principal**:
-   ```bash
-   az login
-   az ad sp create-for-rbac --name "terraform-timevault" --role Contributor \
-       --scopes /subscriptions/{subscription-id} --sdk-auth
-   ```
-   Save the JSON output from this command.
+To run specific test categories:
 
-2. **Add Secrets to GitHub**:
-   Navigate to your GitHub repository → Settings → Secrets and variables → Actions and add:
-   
-   - `AZURE_CLIENT_ID` - Service Principal client ID
-   - `AZURE_CLIENT_SECRET` - Service Principal secret
-   - `AZURE_SUBSCRIPTION_ID` - Your Azure subscription ID
-   - `AZURE_TENANT_ID` - Your Azure tenant ID
-   - `AZURE_CREDENTIALS` - The entire JSON output from service principal creation
-   - `TERRAFORM_STORAGE_RG` - Resource group for Terraform state storage
-   - `TERRAFORM_STORAGE_ACCOUNT` - Storage account for Terraform state
-   - `SQL_ADMIN_USERNAME` - SQL Server admin username
-   - `SQL_ADMIN_PASSWORD` - SQL Server admin password
-   - `JWT_KEY` - Secret key for JWT token signing
+```bash
+# Run just authentication tests
+npm run test:auth
 
-### Quick Deployment Steps
+# Run vault management tests
+npm run test:vaults
 
-1. **Backend Deployment**: 
-   - Push to the appropriate branch (`develop`, `staging`, or `main`)
-   - GitHub Actions will automatically deploy to the corresponding environment
+# Run message tests
+npm run test:messages
 
-2. **Frontend Deployment**:
-   - Configure Azure Static Web App with GitHub integration
-   - Push to your configured branch to trigger deployment
+# Run API integration tests
+npm run test:api
+```
 
-### Detailed Deployment Guides
+To open Cypress and run tests interactively:
 
-For complete deployment instructions see:
-- [AZURE-DEPLOYMENT.md](./AZURE-DEPLOYMENT.md) - Azure-specific deployment details
-- [DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md) - Comprehensive deployment guide for both backend and frontend
-- [terraform/README.md](./terraform/README.md) - Terraform infrastructure documentation
+```bash
+npm run cypress:open
+```
 
-## Environment Configuration
+## Test Coverage
 
-TimeVault supports multiple environments:
-- **Development**: Minimal resources for local development
-- **Staging**: Moderate resources for testing
-- **Production**: Robust resources with redundancy for live use
+The tests validate the following key functionality:
 
-## Authentication
+1. **Authentication**
+   - User registration
+   - Login with valid credentials
+   - Rejection of invalid credentials
+   - Logout functionality
 
-TimeVault uses email-based authentication with JWT tokens. To authenticate:
+2. **Vault Management**
+   - Vault creation
+   - Vault listing
+   - Vault details
 
-1. Register a new user with email and password
-2. Login with credentials to receive a JWT token
-3. Include the token in the Authorization header for subsequent requests
+3. **Message Functionality**
+   - Adding immediate messages
+   - Adding future-locked messages
+   - Message content visibility rules
+   - Message details
 
-## Additional Documentation
+4. **API Integration**
+   - Authentication token usage
+   - Error handling
+   - Data persistence
+   - UI updates after API operations
 
-- [FRONTEND-ARCHITECTURE.md](./FRONTEND-ARCHITECTURE.md) - Frontend application architecture
-- [SECURITY-GUIDE.md](./SECURITY-GUIDE.md) - Security architecture and best practices
-- [FUTURE-ENHANCEMENTS.md](./FUTURE-ENHANCEMENTS.md) - Planned future features and improvements
+## Development Notes
 
-## License
+- The frontend uses a proxy to direct API requests to the backend
+- Authentication token is stored in localStorage
+- API responses are mapped to frontend data structures in the Context providers
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+## Feature Roadmap
+
+- [ ] User profile management
+- [ ] Message encryption
+- [ ] Advanced sharing capabilities
+- [ ] Improved UX for time selection 

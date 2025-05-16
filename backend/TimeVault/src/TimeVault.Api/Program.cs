@@ -14,6 +14,8 @@ using TimeVault.Api.Features.Auth.Mapping;
 using TimeVault.Api.Features.Messages.Mapping;
 using TimeVault.Api.Features.Vaults.Mapping;
 using TimeVault.Api.Infrastructure.Middleware;
+using Npgsql;
+using Microsoft.Extensions.Logging;
 
 // Create builder with minimal services
 var builder = WebApplication.CreateBuilder(args);
@@ -22,11 +24,26 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
+// Configure logging
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+
 // Configure the database context
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
+{
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("DefaultConnection"),
-        b => b.MigrationsAssembly("TimeVault.Infrastructure")));
+        npgsqlOptions => 
+        {
+            npgsqlOptions.MigrationsAssembly("TimeVault.Infrastructure");
+            // Set the timestamp behavior to match traditional behavior
+            AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+        });
+    
+    // Configure for PostgreSQL proper case handling
+    options.UseSnakeCaseNamingConvention();
+});
 
 // Register AutoMapper
 builder.Services.AddAutoMapper(typeof(AuthMappingProfile), typeof(MessagesMappingProfile), typeof(VaultsMappingProfile));
@@ -63,11 +80,15 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Log details for troubleshooting
-Console.WriteLine($"Starting TimeVault API in {builder.Environment.EnvironmentName} mode");
-Console.WriteLine($"Current time: {DateTime.UtcNow}");
-
 var app = builder.Build();
+
+// Get logger factory
+var loggerFactory = app.Services.GetRequiredService<ILoggerFactory>();
+var logger = loggerFactory.CreateLogger("Program");
+
+// Log application startup details
+logger.LogInformation("Starting TimeVault API in {Environment} mode", app.Environment.EnvironmentName);
+logger.LogInformation("Current time: {CurrentTime}", DateTime.UtcNow);
 
 // Add a bunch of simple endpoints for diagnostic purposes
 app.MapGet("/", () => Results.Text("TimeVault API is running. Navigate to /swagger to access the API documentation.")).WithOpenApi();
@@ -112,13 +133,27 @@ try
     using (var scope = app.Services.CreateScope())
     {
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var scopedLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        
+        // Apply migrations to ensure the database schema is up to date
+        try
+        {
+            scopedLogger.LogInformation("Applying database migrations...");
+            dbContext.Database.Migrate();
+            scopedLogger.LogInformation("Database migrations applied successfully.");
+        }
+        catch (Exception ex)
+        {
+            scopedLogger.LogError(ex, "Error applying database migrations: {ErrorMessage}", ex.Message);
+            throw; // Re-throw the exception as this is critical
+        }
         
         // Check if the Username column exists
         bool usernameColumnExists = false;
         try
         {
             // Try to query the column - if it doesn't exist, an exception will be thrown
-            var test = dbContext.Database.ExecuteSqlRaw("SELECT Username FROM \"Users\" LIMIT 1");
+            var test = dbContext.Database.ExecuteSqlRaw("SELECT Username FROM \"users\" LIMIT 1");
             usernameColumnExists = true;
         }
         catch
@@ -131,32 +166,32 @@ try
             // Drop the unique index on Username if it exists
             try
             {
-                dbContext.Database.ExecuteSqlRaw("DROP INDEX IF EXISTS \"IX_Users_Username\"");
+                dbContext.Database.ExecuteSqlRaw("DROP INDEX IF EXISTS \"ix_users_username\"");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error dropping Username index: {ex.Message}");
+                scopedLogger.LogWarning(ex, "Error dropping Username index: {ErrorMessage}", ex.Message);
             }
             
             // Remove the Username column
             try
             {
-                dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" DROP COLUMN IF EXISTS \"Username\"");
-                Console.WriteLine("Username column removed successfully");
+                dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"users\" DROP COLUMN IF EXISTS \"username\"");
+                scopedLogger.LogInformation("Username column removed successfully");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error removing Username column: {ex.Message}");
+                scopedLogger.LogWarning(ex, "Error removing Username column: {ErrorMessage}", ex.Message);
             }
         }
     }
 }
 catch (Exception ex)
 {
-    Console.WriteLine($"Error during database schema modification: {ex.Message}");
+    logger.LogError(ex, "Error during database schema modification: {ErrorMessage}", ex.Message);
 }
 
-Console.WriteLine("Application startup complete - endpoints are ready");
+logger.LogInformation("Application startup complete - endpoints are ready");
 app.Run();
 
 // Make Program class accessible for integration tests

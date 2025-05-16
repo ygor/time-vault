@@ -15,6 +15,7 @@ using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto.Digests;
 using System.IO;
 using TimeVault.Core.Services.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace TimeVault.Infrastructure.Services
 {
@@ -22,13 +23,18 @@ namespace TimeVault.Infrastructure.Services
     {
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IKeyVaultService _keyVaultService;
+        private readonly ILogger<DrandService> _logger;
         private readonly string _drandUrl = "https://api.drand.sh";
         
         // Constructor using IHttpClientFactory from DI
-        public DrandService(IHttpClientFactory httpClientFactory, IKeyVaultService keyVaultService)
+        public DrandService(
+            IHttpClientFactory httpClientFactory, 
+            IKeyVaultService keyVaultService,
+            ILogger<DrandService> logger)
         {
             _httpClientFactory = httpClientFactory;
             _keyVaultService = keyVaultService;
+            _logger = logger;
         }
         
         public async Task<long> GetCurrentRoundAsync()
@@ -36,12 +42,14 @@ namespace TimeVault.Infrastructure.Services
             var client = _httpClientFactory.CreateClient("DrandClient");
             try 
             {
+                _logger.LogDebug("Requesting current drand round from {DrandUrl}", _drandUrl);
                 var response = await client.GetFromJsonAsync<DrandInfo>($"{_drandUrl}/info");
+                _logger.LogDebug("Retrieved current drand round: {Round}", response?.Public?.Round);
                 return response?.Public?.Round ?? 0;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception in a real system
+                _logger.LogError(ex, "Failed to get current drand round from {DrandUrl}", _drandUrl);
                 return 0;
             }
         }
@@ -51,6 +59,7 @@ namespace TimeVault.Infrastructure.Services
             var client = _httpClientFactory.CreateClient("DrandClient");
             try
             {
+                _logger.LogDebug("Requesting drand round {Round} from {DrandUrl}", round, _drandUrl);
                 var response = await client.GetAsync($"{_drandUrl}/public/{round}");
                 
                 if (response.IsSuccessStatusCode)
@@ -59,10 +68,13 @@ namespace TimeVault.Infrastructure.Services
                     var roundInfo = JsonSerializer.Deserialize<DrandRoundResponse>(content);
                     if (roundInfo != null)
                     {
+                        _logger.LogDebug("Successfully retrieved drand round {Round}", round);
                         return roundInfo;
                     }
                 }
                 
+                _logger.LogWarning("Failed to get valid response for drand round {Round}. Status code: {StatusCode}", 
+                    round, response.StatusCode);
                 return new DrandRoundResponse
                 {
                     Round = round,
@@ -71,9 +83,9 @@ namespace TimeVault.Infrastructure.Services
                     PreviousSignature = 0
                 };
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception in a real system
+                _logger.LogError(ex, "Error retrieving drand round {Round} from {DrandUrl}", round, _drandUrl);
                 return new DrandRoundResponse
                 {
                     Round = round,
@@ -88,11 +100,15 @@ namespace TimeVault.Infrastructure.Services
         {
             try
             {
+                _logger.LogDebug("Calculating drand round for unlock time: {UnlockTime}", unlockTime);
                 var client = _httpClientFactory.CreateClient("DrandClient");
                 var info = await client.GetFromJsonAsync<DrandInfo>($"{_drandUrl}/info");
                 
                 if (info == null || info.Public == null)
+                {
+                    _logger.LogWarning("Failed to get drand info for round calculation");
                     return 0;
+                }
                     
                 // Calculate the time difference between now and unlock time in seconds
                 var timeDifferenceSeconds = (unlockTime - DateTime.UtcNow).TotalSeconds;
@@ -101,11 +117,14 @@ namespace TimeVault.Infrastructure.Services
                 var roundsToAdd = (long)Math.Ceiling(timeDifferenceSeconds / info.Public.Period);
                 
                 // Add those rounds to the current round
-                return info.Public.Round + roundsToAdd;
+                var targetRound = info.Public.Round + roundsToAdd;
+                _logger.LogDebug("Calculated target round {TargetRound} for unlock time {UnlockTime}", targetRound, unlockTime);
+                
+                return targetRound;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception in a real system
+                _logger.LogError(ex, "Error calculating drand round for unlock time {UnlockTime}", unlockTime);
                 return 0;
             }
         }
@@ -114,13 +133,15 @@ namespace TimeVault.Infrastructure.Services
         {
             try 
             {
+                _logger.LogDebug("Requesting drand public key from {DrandUrl}", _drandUrl);
                 var client = _httpClientFactory.CreateClient("DrandClient");
                 var info = await client.GetFromJsonAsync<DrandInfo>($"{_drandUrl}/info");
+                _logger.LogDebug("Retrieved drand public key");
                 return info?.Public?.Key ?? string.Empty;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Log the exception in a real system
+                _logger.LogError(ex, "Failed to get drand public key from {DrandUrl}", _drandUrl);
                 return string.Empty;
             }
         }
@@ -129,24 +150,31 @@ namespace TimeVault.Infrastructure.Services
         {
             try
             {
+                _logger.LogDebug("Beginning Tlock encryption for round {Round}", round);
+                
                 // Get the drand public key
                 var drandPublicKeyHex = await GetPublicKeyAsync();
                 if (string.IsNullOrEmpty(drandPublicKeyHex))
                 {
+                    _logger.LogError("Tlock encryption failed: Could not retrieve drand public key");
                     throw new InvalidOperationException("Could not retrieve drand public key");
                 }
                 
                 // Generate a random symmetric key for content encryption
                 byte[] contentKey = GenerateRandomKey(32); // 256-bit AES key
+                _logger.LogDebug("Generated random symmetric key for content encryption");
                 
                 // Derive the vault-specific encryption key from drand public key and target round
                 byte[] encryptionKey = DeriveEncryptionKey(HexToBytes(drandPublicKeyHex), round);
+                _logger.LogDebug("Derived encryption key from drand public key and round {Round}", round);
                 
                 // Encrypt the content with the symmetric key
                 var (encryptedContent, iv) = EncryptContent(content, contentKey);
+                _logger.LogDebug("Encrypted content with symmetric key");
                 
                 // Encrypt the symmetric key with the derived encryption key
                 var encryptedKey = EncryptSymmetricKey(contentKey, encryptionKey);
+                _logger.LogDebug("Encrypted symmetric key with derived encryption key");
                 
                 // Create a structure to store all necessary data
                 var tlockData = new TlockDataV2
@@ -161,11 +189,12 @@ namespace TimeVault.Infrastructure.Services
                 };
                 
                 // Serialize and return
+                _logger.LogInformation("Successfully encrypted content with Tlock for round {Round}", round);
                 return JsonSerializer.Serialize(tlockData);
             }
             catch (Exception ex)
             {
-                // Log the exception in a real system
+                _logger.LogError(ex, "Tlock encryption failed for round {Round}", round);
                 return $"{{\"error\":\"Encryption failed: {ex.Message}\"}}";
             }
         }

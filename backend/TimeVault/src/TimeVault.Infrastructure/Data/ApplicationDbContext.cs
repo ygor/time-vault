@@ -13,6 +13,8 @@ namespace TimeVault.Infrastructure.Data
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options)
         {
+            // Set the naming convention for PostgreSQL
+            AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
         }
 
         public DbSet<User> Users { get; set; }
@@ -23,6 +25,37 @@ namespace TimeVault.Infrastructure.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            // Use snake_case naming convention for PostgreSQL
+            foreach (var entity in modelBuilder.Model.GetEntityTypes())
+            {
+                // Set the table name to snake_case
+                entity.SetTableName(ToSnakeCase(entity.GetTableName()));
+
+                // Set column names to snake_case
+                foreach (var property in entity.GetProperties())
+                {
+                    property.SetColumnName(ToSnakeCase(property.GetColumnName()));
+                }
+
+                // Set primary key name to snake_case
+                foreach (var key in entity.GetKeys())
+                {
+                    key.SetName(ToSnakeCase(key.GetName()));
+                }
+
+                // Set foreign key constraint names to snake_case
+                foreach (var key in entity.GetForeignKeys())
+                {
+                    key.SetConstraintName(ToSnakeCase(key.GetConstraintName()));
+                }
+
+                // Set index names to snake_case
+                foreach (var index in entity.GetIndexes())
+                {
+                    index.SetDatabaseName(ToSnakeCase(index.GetDatabaseName()));
+                }
+            }
 
             // Configure the User entity
             modelBuilder.Entity<User>()
@@ -107,25 +140,31 @@ namespace TimeVault.Infrastructure.Data
                 .HasIndex(vs => new { vs.VaultId, vs.UserId })
                 .IsUnique();
         }
-        
-        /// <summary>
-        /// Initialize the PostgreSQL database using the SQL script
-        /// </summary>
-        public static void InitializePostgresDatabase(string connectionString, string scriptPath)
+
+        // Helper method to convert PascalCase to snake_case
+        private static string ToSnakeCase(string input)
         {
-            using (var connection = new NpgsqlConnection(connectionString))
+            if (string.IsNullOrEmpty(input))
+                return input;
+
+            var result = new System.Text.StringBuilder(input.Length + 10);
+            result.Append(char.ToLower(input[0]));
+
+            for (int i = 1; i < input.Length; i++)
             {
-                connection.Open();
-                
-                // Read the SQL script
-                string sql = File.ReadAllText(scriptPath);
-                
-                // Execute the script
-                using (var command = new NpgsqlCommand(sql, connection))
+                var c = input[i];
+                if (char.IsUpper(c))
                 {
-                    command.ExecuteNonQuery();
+                    result.Append('_');
+                    result.Append(char.ToLower(c));
+                }
+                else
+                {
+                    result.Append(c);
                 }
             }
+
+            return result.ToString();
         }
     }
 } 

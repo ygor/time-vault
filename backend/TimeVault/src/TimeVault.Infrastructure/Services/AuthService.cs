@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System;
 using System.IdentityModel.Tokens.Jwt;
@@ -18,23 +19,36 @@ namespace TimeVault.Infrastructure.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
+        private readonly ILogger<AuthService> _logger;
 
-        public AuthService(ApplicationDbContext context, IConfiguration configuration)
+        public AuthService(
+            ApplicationDbContext context, 
+            IConfiguration configuration,
+            ILogger<AuthService> logger)
         {
             _context = context;
             _configuration = configuration;
+            _logger = logger;
         }
 
         public async Task<(bool Success, string Token, User? User, string Error)> LoginAsync(string email, string password)
         {
+            _logger.LogInformation("Login attempt for email: {Email}", email);
+            
             var user = await _context.Users.FirstOrDefaultAsync(u => 
                 u.Email.ToLower() == email.ToLower());
 
             if (user == null)
+            {
+                _logger.LogWarning("Login failed: User not found for email: {Email}", email);
                 return (false, string.Empty, null, "User not found");
+            }
 
             if (!VerifyPasswordHash(password, user.PasswordHash))
+            {
+                _logger.LogWarning("Login failed: Invalid password for email: {Email}", email);
                 return (false, string.Empty, null, "Invalid password");
+            }
 
             // Update last login
             user.LastLogin = DateTime.UtcNow;
@@ -42,14 +56,20 @@ namespace TimeVault.Infrastructure.Services
             await _context.SaveChangesAsync();
 
             var token = GenerateJwtToken(user);
+            _logger.LogInformation("Login successful for user: {Email}", email);
 
             return (true, token, user, string.Empty);
         }
 
         public async Task<(bool Success, string Token, User? User, string Error)> RegisterAsync(string email, string password)
         {
+            _logger.LogInformation("Registration attempt for email: {Email}", email);
+            
             if (await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower()))
+            {
+                _logger.LogWarning("Registration failed: Email already registered: {Email}", email);
                 return (false, string.Empty, null, "Email already registered");
+            }
 
             var now = DateTime.UtcNow;
             var user = new User
@@ -69,12 +89,15 @@ namespace TimeVault.Infrastructure.Services
             await _context.SaveChangesAsync();
 
             var token = GenerateJwtToken(user);
+            _logger.LogInformation("Registration successful for new user: {Email}, ID: {UserId}", email, user.Id);
 
             return (true, token, user, string.Empty);
         }
 
         public Task<(bool Success, string Token, string Error)> RefreshTokenAsync(string token)
         {
+            _logger.LogDebug("Token refresh requested");
+            
             // This is a simplified implementation - in a real-world app, 
             // you would verify the token and check a refresh token stored in a database
             try
@@ -98,36 +121,52 @@ namespace TimeVault.Infrastructure.Services
 
                 var user = _context.Users.Find(userId);
                 if (user == null)
+                {
+                    _logger.LogWarning("Token refresh failed: User not found for ID: {UserId}", userId);
                     return Task.FromResult((false, string.Empty, "User not found"));
+                }
 
                 var newToken = GenerateJwtToken(user);
+                _logger.LogInformation("Token refresh successful for user: {Email}", user.Email);
 
                 return Task.FromResult((true, newToken, string.Empty));
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Token refresh failed: Invalid token");
                 return Task.FromResult((false, string.Empty, "Invalid token"));
             }
         }
 
         public async Task<bool> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword)
         {
+            _logger.LogInformation("Password change requested for user ID: {UserId}", userId);
+            
             var user = await _context.Users.FindAsync(userId);
             if (user == null)
+            {
+                _logger.LogWarning("Password change failed: User not found for ID: {UserId}", userId);
                 return false;
+            }
 
             if (!VerifyPasswordHash(currentPassword, user.PasswordHash))
+            {
+                _logger.LogWarning("Password change failed: Invalid current password for user: {Email}", user.Email);
                 return false;
+            }
 
             user.PasswordHash = HashPassword(newPassword);
             user.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
+            _logger.LogInformation("Password changed successfully for user: {Email}", user.Email);
             return true;
         }
 
         private string GenerateJwtToken(User user)
         {
+            _logger.LogDebug("Generating JWT token for user: {Email}", user.Email);
+            
             var tokenHandler = new JwtSecurityTokenHandler();
             var jwtKey = _configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT key is not configured");
             var key = Encoding.ASCII.GetBytes(jwtKey);
@@ -154,6 +193,8 @@ namespace TimeVault.Infrastructure.Services
 
         private string HashPassword(string password)
         {
+            _logger.LogDebug("Hashing password");
+            
             using (var hmac = new HMACSHA512())
             {
                 var salt = hmac.Key;
@@ -165,9 +206,14 @@ namespace TimeVault.Infrastructure.Services
 
         private bool VerifyPasswordHash(string password, string storedHash)
         {
+            _logger.LogDebug("Verifying password hash");
+            
             var parts = storedHash.Split(':');
             if (parts.Length != 2)
+            {
+                _logger.LogWarning("Invalid stored hash format");
                 return false;
+            }
 
             var salt = Convert.FromBase64String(parts[0]);
             var hash = Convert.FromBase64String(parts[1]);
@@ -188,8 +234,13 @@ namespace TimeVault.Infrastructure.Services
 
         public async Task<bool> CreateAdminUserIfNotExists(string email, string password)
         {
+            _logger.LogInformation("Checking if admin user exists: {Email}", email);
+            
             if (await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower()))
+            {
+                _logger.LogInformation("Admin user already exists: {Email}", email);
                 return false;  // User already exists
+            }
 
             var now = DateTime.UtcNow;
             var user = new User
@@ -208,6 +259,7 @@ namespace TimeVault.Infrastructure.Services
             await _context.Users.AddAsync(user);
             await _context.SaveChangesAsync();
 
+            _logger.LogInformation("Admin user created successfully: {Email}", email);
             return true;
         }
     }
