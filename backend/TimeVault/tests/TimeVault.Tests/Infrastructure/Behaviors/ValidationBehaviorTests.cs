@@ -6,6 +6,7 @@ using FluentAssertions;
 using FluentValidation;
 using FluentValidation.Results;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Moq;
 using TimeVault.Api.Infrastructure.Behaviors;
 using Xunit;
@@ -38,7 +39,8 @@ namespace TimeVault.Tests.Infrastructure.Behaviors
             mockDelegate.Setup(d => d()).ReturnsAsync("Success");
             
             var request = new TestRequest { TestProperty = "Valid Value" };
-            var behavior = new ValidationBehavior<TestRequest, string>(validators);
+            var mockLogger = new Mock<ILogger<ValidationBehavior<TestRequest, string>>>();
+            var behavior = new ValidationBehavior<TestRequest, string>(validators, mockLogger.Object);
 
             // Act
             var result = await behavior.Handle(request, mockDelegate.Object, CancellationToken.None);
@@ -56,7 +58,8 @@ namespace TimeVault.Tests.Infrastructure.Behaviors
             var mockDelegate = new Mock<RequestHandlerDelegate<string>>();
             
             var request = new TestRequest { TestProperty = "" }; // Invalid request
-            var behavior = new ValidationBehavior<TestRequest, string>(validators);
+            var mockLogger = new Mock<ILogger<ValidationBehavior<TestRequest, string>>>();
+            var behavior = new ValidationBehavior<TestRequest, string>(validators, mockLogger.Object);
 
             // Act & Assert
             await Assert.ThrowsAsync<ValidationException>(() => 
@@ -82,7 +85,8 @@ namespace TimeVault.Tests.Infrastructure.Behaviors
             mockDelegate.Setup(d => d()).ReturnsAsync("Success");
             
             var request = new TestRequest { TestProperty = "Valid Value" };
-            var behavior = new ValidationBehavior<TestRequest, string>(validators);
+            var mockLogger = new Mock<ILogger<ValidationBehavior<TestRequest, string>>>();
+            var behavior = new ValidationBehavior<TestRequest, string>(validators, mockLogger.Object);
 
             // Act
             await behavior.Handle(request, mockDelegate.Object, CancellationToken.None);

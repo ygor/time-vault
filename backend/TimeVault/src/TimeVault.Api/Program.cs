@@ -127,7 +127,7 @@ app.UseCors(policy => policy
 app.UseRouting();
 app.MapControllers();
 
-// Remove Username column if it exists
+// Apply database migrations
 try
 {
     using (var scope = app.Services.CreateScope())
@@ -139,56 +139,37 @@ try
         try
         {
             scopedLogger.LogInformation("Applying database migrations...");
-            dbContext.Database.Migrate();
-            scopedLogger.LogInformation("Database migrations applied successfully.");
+            
+            // Check if we're using a relational database provider before running migrations
+            if (dbContext.Database.ProviderName?.Contains("InMemory") == false)
+            {
+                dbContext.Database.Migrate();
+                scopedLogger.LogInformation("Database migrations applied successfully.");
+            }
+            else
+            {
+                scopedLogger.LogInformation("Skipping migrations for non-relational database provider: {Provider}", 
+                    dbContext.Database.ProviderName);
+            }
+            
+            // Log database connection details for debugging
+            scopedLogger.LogInformation("Database connection established successfully.");
+            scopedLogger.LogInformation("Database provider: {Provider}", dbContext.Database.ProviderName);
         }
         catch (Exception ex)
         {
             scopedLogger.LogError(ex, "Error applying database migrations: {ErrorMessage}", ex.Message);
-            throw; // Re-throw the exception as this is critical
-        }
-        
-        // Check if the Username column exists
-        bool usernameColumnExists = false;
-        try
-        {
-            // Try to query the column - if it doesn't exist, an exception will be thrown
-            var test = dbContext.Database.ExecuteSqlRaw("SELECT Username FROM \"users\" LIMIT 1");
-            usernameColumnExists = true;
-        }
-        catch
-        {
-            usernameColumnExists = false;
-        }
-        
-        if (usernameColumnExists)
-        {
-            // Drop the unique index on Username if it exists
-            try
+            // Only re-throw for relational databases
+            if (dbContext.Database.ProviderName?.Contains("InMemory") == false)
             {
-                dbContext.Database.ExecuteSqlRaw("DROP INDEX IF EXISTS \"ix_users_username\"");
-            }
-            catch (Exception ex)
-            {
-                scopedLogger.LogWarning(ex, "Error dropping Username index: {ErrorMessage}", ex.Message);
-            }
-            
-            // Remove the Username column
-            try
-            {
-                dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"users\" DROP COLUMN IF EXISTS \"username\"");
-                scopedLogger.LogInformation("Username column removed successfully");
-            }
-            catch (Exception ex)
-            {
-                scopedLogger.LogWarning(ex, "Error removing Username column: {ErrorMessage}", ex.Message);
+                throw; // Re-throw the exception as this is critical for relational databases
             }
         }
     }
 }
 catch (Exception ex)
 {
-    logger.LogError(ex, "Error during database schema modification: {ErrorMessage}", ex.Message);
+    logger.LogError(ex, "Error during database migrations: {ErrorMessage}", ex.Message);
 }
 
 logger.LogInformation("Application startup complete - endpoints are ready");

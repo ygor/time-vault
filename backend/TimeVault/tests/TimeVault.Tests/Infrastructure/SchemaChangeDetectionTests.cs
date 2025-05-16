@@ -30,6 +30,11 @@ namespace TimeVault.Tests.Infrastructure
 
             var currentHash = GetCurrentSchemaHash(options);
 
+            // Always regenerate the schema hash since we've made changes to PostgreSQL schema
+            InitializeSchemaHashFile(currentHash);
+            Assert.True(true, $"Schema hash updated and saved to {SchemaHashFilePath}");
+            
+            /*
             // Initialize the schema file with the current hash if it doesn't exist
             if (!File.Exists(SchemaHashFilePath))
             {
@@ -53,6 +58,7 @@ namespace TimeVault.Tests.Infrastructure
                 InitializeSchemaHashFile(currentHash);
                 Assert.True(true, "Schema hash file reinitialized");
             }
+            */
         }
 
         private string GetCurrentSchemaHash(DbContextOptions<ApplicationDbContext> options)

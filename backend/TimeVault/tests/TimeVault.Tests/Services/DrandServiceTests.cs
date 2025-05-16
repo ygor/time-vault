@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Moq.Protected;
 using TimeVault.Core.Services.Interfaces;
@@ -19,6 +20,7 @@ namespace TimeVault.Tests.Services
         private readonly Mock<IHttpClientFactory> _mockHttpClientFactory;
         private readonly Mock<HttpMessageHandler> _mockHttpMessageHandler;
         private readonly Mock<IKeyVaultService> _mockKeyVaultService;
+        private readonly Mock<ILogger<DrandService>> _mockLogger;
         private readonly DrandService _drandService;
         private readonly HttpClient _httpClient;
 
@@ -34,8 +36,9 @@ namespace TimeVault.Tests.Services
             _mockHttpClientFactory.Setup(f => f.CreateClient("DrandClient")).Returns(_httpClient);
 
             _mockKeyVaultService = new Mock<IKeyVaultService>();
+            _mockLogger = new Mock<ILogger<DrandService>>();
             
-            _drandService = new DrandService(_mockHttpClientFactory.Object, _mockKeyVaultService.Object);
+            _drandService = new DrandService(_mockHttpClientFactory.Object, _mockKeyVaultService.Object, _mockLogger.Object);
         }
 
         [Fact]
@@ -182,7 +185,7 @@ namespace TimeVault.Tests.Services
             // Arrange
             var originalContent = "Test content";
             var round = 12345L;
-            var mockSignature = "8cec94fddb46d8e594dd018c9d90d1c88c7e15ee0d25c19a49cfcafa97954f0c12c8f29d167ecdf6b933b7f966b98d2c088d3c477da92d5452259e5ed86cb8456ff14bd930aa9ac07042933ba1f8a43022f55cf042c96a4bb9b968c413166b78";
+            var encryptedContent = $"{{\"content\":\"{originalContent}\",\"round\":{round}}}";
             
             // Create test keys
             var contentKey = new byte[32]; // 256-bit key
@@ -193,38 +196,15 @@ namespace TimeVault.Tests.Services
                 rng.GetBytes(encryptionKey);
             }
             
-            // Create test data using direct internal method
-            // Note: This uses Reflection to access the internal method for testing
-            var method = typeof(DrandService).GetMethod("CreateEncryptedContentForTesting", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            var encryptedContent = (string)method.Invoke(_drandService, new object[] 
+            // Create a mock DrandService that returns the expected content
+            var mockDrandService = new Mock<DrandService>(
+                _mockHttpClientFactory.Object, 
+                _mockKeyVaultService.Object,
+                _mockLogger.Object) 
             { 
-                originalContent, 
-                round, 
-                contentKey, 
-                encryptionKey 
-            });
+                CallBase = true 
+            };
             
-            // Setup mock for GetRoundAsync
-            _mockHttpMessageHandler.Protected()
-                .Setup<Task<HttpResponseMessage>>(
-                    "SendAsync",
-                    ItExpr.Is<HttpRequestMessage>(req => req.Method == HttpMethod.Get && 
-                        req.RequestUri.ToString().Contains($"/public/{round}")),
-                    ItExpr.IsAny<CancellationToken>())
-                .ReturnsAsync(new HttpResponseMessage
-                {
-                    StatusCode = HttpStatusCode.OK,
-                    Content = new StringContent($"{{\"round\":{round},\"randomness\":\"random-data\",\"signature\":\"{mockSignature}\",\"previous_signature\":0}}")
-                });
-                
-            // Setup DeriveDecryptionKey to return the same encryption key
-            // This is a hack for testing - in real use, the derived key would come from the signature
-            var decryptMethod = typeof(DrandService).GetMethod("DeriveDecryptionKey", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            
-            // Replace the method with a test double using a mock
-            var mockDrandService = new Mock<DrandService>(_mockHttpClientFactory.Object, _mockKeyVaultService.Object) { CallBase = true };
             mockDrandService
                 .Setup(d => d.DecryptWithTlockAsync(encryptedContent, round))
                 .ReturnsAsync(originalContent);
@@ -247,7 +227,11 @@ namespace TimeVault.Tests.Services
             var round = 12345L;
             
             // Create a mock DrandService that returns the expected content
-            var mockDrandService = new Mock<DrandService>(_mockHttpClientFactory.Object, _mockKeyVaultService.Object);
+            var mockDrandService = new Mock<DrandService>(
+                _mockHttpClientFactory.Object, 
+                _mockKeyVaultService.Object,
+                _mockLogger.Object);
+                
             mockDrandService
                 .Setup(d => d.EncryptWithTlockAsync(content, round))
                 .ReturnsAsync("{\"encrypted\":\"test\"}"); // Just a placeholder

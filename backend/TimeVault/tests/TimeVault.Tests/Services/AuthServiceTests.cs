@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using FluentAssertions;
 using TimeVault.Domain.Entities;
 using TimeVault.Infrastructure.Data;
 using TimeVault.Infrastructure.Services;
 using Xunit;
 using Microsoft.Extensions.DependencyInjection;
+using Moq;
 
 namespace TimeVault.Tests.Services
 {
@@ -16,6 +18,7 @@ namespace TimeVault.Tests.Services
     {
         private readonly DbContextOptions<ApplicationDbContext> _contextOptions;
         private readonly IConfiguration _configuration;
+        private readonly Mock<ILogger<AuthService>> _mockLogger;
 
         public AuthServiceTests()
         {
@@ -35,6 +38,9 @@ namespace TimeVault.Tests.Services
             _configuration = new ConfigurationBuilder()
                 .AddInMemoryCollection(configValues)
                 .Build();
+                
+            // Create mock logger
+            _mockLogger = new Mock<ILogger<AuthService>>();
 
             // Create database and apply migrations
             using var context = new ApplicationDbContext(_contextOptions);
@@ -46,7 +52,7 @@ namespace TimeVault.Tests.Services
         {
             // Arrange
             using var context = new ApplicationDbContext(_contextOptions);
-            var authService = new AuthService(context, _configuration);
+            var authService = new AuthService(context, _configuration, _mockLogger.Object);
             
             var testEmail = "test@example.com";
             var testPassword = "StrongPassword!123";
@@ -80,7 +86,7 @@ namespace TimeVault.Tests.Services
         {
             // Arrange
             using var context = new ApplicationDbContext(_contextOptions);
-            var authService = new AuthService(context, _configuration);
+            var authService = new AuthService(context, _configuration, _mockLogger.Object);
             
             var testEmail = "duplicate@example.com";
             var testPassword = "StrongPassword!123";
@@ -101,7 +107,7 @@ namespace TimeVault.Tests.Services
         {
             // Arrange
             using var context = new ApplicationDbContext(_contextOptions);
-            var authService = new AuthService(context, _configuration);
+            var authService = new AuthService(context, _configuration, _mockLogger.Object);
             
             var testEmail = "login@example.com";
             var testPassword = "StrongPassword!123";
@@ -124,7 +130,7 @@ namespace TimeVault.Tests.Services
         {
             // Arrange
             using var context = new ApplicationDbContext(_contextOptions);
-            var authService = new AuthService(context, _configuration);
+            var authService = new AuthService(context, _configuration, _mockLogger.Object);
             
             var testEmail = "invalid@example.com";
             var testPassword = "StrongPassword!123";
@@ -145,7 +151,7 @@ namespace TimeVault.Tests.Services
         {
             // Arrange
             using var context = new ApplicationDbContext(_contextOptions);
-            var authService = new AuthService(context, _configuration);
+            var authService = new AuthService(context, _configuration, _mockLogger.Object);
             
             var testEmail = "admin@example.com";
             var testPassword = "AdminPassword!123";

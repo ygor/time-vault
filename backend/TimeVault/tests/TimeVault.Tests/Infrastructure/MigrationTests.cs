@@ -177,10 +177,10 @@ namespace TimeVault.Tests.Infrastructure
             {
                 // Check that all expected tables exist in the database
                 var expectedTables = new[] {
-                    "User",
-                    "Vault",
-                    "Message",
-                    "VaultShare"
+                    "users",
+                    "vaults",
+                    "messages",
+                    "vault_shares"
                 };
 
                 // Get the actual tables from the database

@@ -30,30 +30,40 @@ namespace TimeVault.Infrastructure.Data
             foreach (var entity in modelBuilder.Model.GetEntityTypes())
             {
                 // Set the table name to snake_case
-                entity.SetTableName(ToSnakeCase(entity.GetTableName()));
+                var tableName = entity.GetTableName();
+                if (tableName != null)
+                    entity.SetTableName(ToSnakeCase(tableName));
 
                 // Set column names to snake_case
                 foreach (var property in entity.GetProperties())
                 {
-                    property.SetColumnName(ToSnakeCase(property.GetColumnName()));
+                    var columnName = property.GetColumnName();
+                    if (columnName != null)
+                        property.SetColumnName(ToSnakeCase(columnName));
                 }
 
                 // Set primary key name to snake_case
                 foreach (var key in entity.GetKeys())
                 {
-                    key.SetName(ToSnakeCase(key.GetName()));
+                    var keyName = key.GetName();
+                    if (keyName != null)
+                        key.SetName(ToSnakeCase(keyName));
                 }
 
                 // Set foreign key constraint names to snake_case
                 foreach (var key in entity.GetForeignKeys())
                 {
-                    key.SetConstraintName(ToSnakeCase(key.GetConstraintName()));
+                    var constraintName = key.GetConstraintName();
+                    if (constraintName != null)
+                        key.SetConstraintName(ToSnakeCase(constraintName));
                 }
 
                 // Set index names to snake_case
                 foreach (var index in entity.GetIndexes())
                 {
-                    index.SetDatabaseName(ToSnakeCase(index.GetDatabaseName()));
+                    var databaseName = index.GetDatabaseName();
+                    if (databaseName != null)
+                        index.SetDatabaseName(ToSnakeCase(databaseName));
                 }
             }
 

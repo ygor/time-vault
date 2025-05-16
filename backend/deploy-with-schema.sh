@@ -26,7 +26,7 @@ docker-compose -f docker-compose.yml down
 
 # Step 3: Rebuild and start the Docker containers
 echo -e "${YELLOW}Step 3: Starting Docker containers...${NC}"
-docker-compose -f docker-compose.yml up --build -d
+docker-compose -f docker-compose.yml up --build
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}Failed to start Docker containers!${NC}"
