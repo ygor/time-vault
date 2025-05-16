@@ -41,7 +41,7 @@ attempts=0
 max_attempts=30
 sleep_seconds=5
 
-until $(curl --output /dev/null --silent --fail http://localhost:8080/health); do
+until $(curl --output /dev/null --silent --fail http://localhost:8081/health); do
     if [ ${attempts} -eq ${max_attempts} ]; then
         echo -e "${RED}API failed to start within the expected time frame.${NC}"
         exit 1
@@ -54,8 +54,8 @@ until $(curl --output /dev/null --silent --fail http://localhost:8080/health); d
 done
 
 echo -e "${GREEN}TimeVault API successfully deployed!${NC}"
-echo -e "${BLUE}API URL: http://localhost:8080${NC}"
-echo -e "${BLUE}Swagger URL: http://localhost:8080/swagger${NC}"
+echo -e "${BLUE}API URL: http://localhost:8081${NC}"
+echo -e "${BLUE}Swagger URL: http://localhost:8081/swagger${NC}"
 echo -e "${BLUE}Note: Database migrations will be automatically applied on startup${NC}"
 
 exit 0 
