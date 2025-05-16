@@ -89,8 +89,8 @@ dotnet test
 ## API Documentation
 
 When running locally, API documentation is available at:
-- Swagger UI: `https://localhost:5001/swagger`
-- OpenAPI JSON: `https://localhost:5001/swagger/v1/swagger.json`
+- Swagger UI: `https://localhost:8080/swagger`
+- OpenAPI JSON: `https://localhost:8080/swagger/v1/swagger.json`
 
 See [API-ENDPOINTS.md](./API-ENDPOINTS.md) for a detailed overview of all available endpoints.
 

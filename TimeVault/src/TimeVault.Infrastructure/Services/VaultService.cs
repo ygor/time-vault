@@ -20,35 +20,43 @@ namespace TimeVault.Infrastructure.Services
             _keyVaultService = keyVaultService;
         }
 
-        public async Task<Vault> CreateVaultAsync(Guid userId, string name, string description)
+        public async Task<Vault?> CreateVaultAsync(Guid userId, string name, string description)
         {
             var user = await _context.Users.FindAsync(userId);
             if (user == null)
-                return new Vault();
+                return null; // Return null to indicate error
 
-            // Generate a unique key pair for this vault
-            var (publicKey, privateKey) = await _keyVaultService.GenerateVaultKeyPairAsync();
-            
-            // Encrypt the private key with the user's key
-            var encryptedPrivateKey = await _keyVaultService.EncryptVaultPrivateKeyAsync(privateKey, userId);
-            
-            var now = DateTime.UtcNow;
-            var vault = new Vault
+            try
             {
-                Id = Guid.NewGuid(),
-                Name = name,
-                Description = description,
-                CreatedAt = now,
-                UpdatedAt = now,
-                OwnerId = userId,
-                PublicKey = publicKey,
-                EncryptedPrivateKey = encryptedPrivateKey
-            };
+                // Generate a unique key pair for this vault
+                var (publicKey, privateKey) = await _keyVaultService.GenerateVaultKeyPairAsync();
+                
+                // Encrypt the private key with the user's key
+                var encryptedPrivateKey = await _keyVaultService.EncryptVaultPrivateKeyAsync(privateKey, userId);
+                
+                var now = DateTime.UtcNow;
+                var vault = new Vault
+                {
+                    Id = Guid.NewGuid(),
+                    Name = name,
+                    Description = description,
+                    CreatedAt = now,
+                    UpdatedAt = now,
+                    OwnerId = userId,
+                    PublicKey = publicKey,
+                    EncryptedPrivateKey = encryptedPrivateKey
+                };
 
-            await _context.Vaults.AddAsync(vault);
-            await _context.SaveChangesAsync();
+                await _context.Vaults.AddAsync(vault);
+                await _context.SaveChangesAsync();
 
-            return vault;
+                return vault;
+            }
+            catch (Exception)
+            {
+                // Log the exception in a real system
+                return null;
+            }
         }
 
         public async Task<Vault?> GetVaultByIdAsync(Guid vaultId, Guid userId)

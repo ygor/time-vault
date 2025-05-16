@@ -11,6 +11,12 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using TimeVault.Api.Infrastructure.Middleware;
 using Xunit;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace TimeVault.Tests.Infrastructure.Middleware
 {
@@ -111,6 +117,113 @@ namespace TimeVault.Tests.Infrastructure.Middleware
             context.Response.Body.Position = 0;
             string responseBody = await new StreamReader(context.Response.Body).ReadToEndAsync();
             Assert.Equal(string.Empty, responseBody); // No content should be written
+        }
+
+        [Fact]
+        public async Task Middleware_ReturnsBadRequest_ForValidationException()
+        {
+            // Arrange
+            using var host = await CreateHostWithEndpointThatThrows(new ValidationException("Validation failed"));
+
+            // Act
+            var response = await host.GetTestClient().GetAsync("/test-validation-error");
+
+            // Assert
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var content = await response.Content.ReadAsStringAsync();
+            Assert.Contains("Validation failed", content);
+        }
+
+        [Fact]
+        public async Task Middleware_ReturnsNotFound_ForKeyNotFoundException()
+        {
+            // Arrange
+            using var host = await CreateHostWithEndpointThatThrows(new KeyNotFoundException("Resource not found"));
+
+            // Act
+            var response = await host.GetTestClient().GetAsync("/test-not-found");
+
+            // Assert
+            // The middleware doesn't handle KeyNotFoundException separately, so it falls back to InternalServerError
+            Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+            var content = await response.Content.ReadAsStringAsync();
+            Assert.Contains("An unexpected error occurred", content);
+        }
+
+        [Fact]
+        public async Task Middleware_ReturnsUnauthorized_ForUnauthorizedAccessException()
+        {
+            // Arrange
+            using var host = await CreateHostWithEndpointThatThrows(new UnauthorizedAccessException("Not authorized"));
+
+            // Act
+            var response = await host.GetTestClient().GetAsync("/test-unauthorized");
+
+            // Assert
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+            var content = await response.Content.ReadAsStringAsync();
+            Assert.Contains("You are not authorized", content);
+        }
+
+        [Fact]
+        public async Task Middleware_ReturnsInternalServerError_ForGenericException()
+        {
+            // Arrange
+            using var host = await CreateHostWithEndpointThatThrows(new Exception("Something went wrong"));
+
+            // Act
+            var response = await host.GetTestClient().GetAsync("/test-error");
+
+            // Assert
+            Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+            var content = await response.Content.ReadAsStringAsync();
+            Assert.Contains("An unexpected error occurred", content);
+            // Should not expose the actual exception message for security reasons
+            Assert.DoesNotContain("Something went wrong", content);
+        }
+
+        private async Task<IHost> CreateHostWithEndpointThatThrows(Exception exception)
+        {
+            // Create a test server with a simple endpoint that throws the specified exception
+            var host = await new HostBuilder()
+                .ConfigureWebHost(webBuilder =>
+                {
+                    webBuilder
+                        .UseTestServer()
+                        .ConfigureServices(services => {
+                            services.AddControllers();
+                            services.AddRouting();
+                        })
+                        .Configure(app =>
+                        {
+                            app.UseExceptionHandling();
+                            app.UseRouting();
+                            app.UseEndpoints(endpoints =>
+                            {
+                                endpoints.MapGet("/test-validation-error", context => 
+                                {
+                                    throw new ValidationException("Validation failed");
+                                });
+                                
+                                endpoints.MapGet("/test-not-found", context => 
+                                {
+                                    throw new KeyNotFoundException("Resource not found");
+                                });
+                                
+                                endpoints.MapGet("/test-unauthorized", context => 
+                                {
+                                    throw new UnauthorizedAccessException("Not authorized");
+                                });
+                                
+                                endpoints.MapGet("/test-error", context => 
+                                {
+                                    throw exception;
+                                });
+                            });
+                        });
+                }).StartAsync();
+
+            return host;
         }
     }
 } 

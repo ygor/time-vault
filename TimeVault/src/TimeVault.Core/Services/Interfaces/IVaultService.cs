@@ -7,7 +7,7 @@ namespace TimeVault.Core.Services.Interfaces
 {
     public interface IVaultService
     {
-        Task<Vault> CreateVaultAsync(Guid userId, string name, string description);
+        Task<Vault?> CreateVaultAsync(Guid userId, string name, string description);
         Task<Vault?> GetVaultByIdAsync(Guid vaultId, Guid userId);
         Task<IEnumerable<Vault>> GetUserVaultsAsync(Guid userId);
         Task<IEnumerable<Vault>> GetSharedVaultsAsync(Guid userId);

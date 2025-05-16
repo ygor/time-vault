@@ -1,209 +1,163 @@
-using FluentValidation;
-using MediatR;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using System;
 using Microsoft.OpenApi.Models;
-using Npgsql.EntityFrameworkCore.PostgreSQL;
-using System.IO;
 using System.Reflection;
-using System.Text;
 using TimeVault.Api.Infrastructure.Behaviors;
+using FluentValidation;
+using Microsoft.EntityFrameworkCore;
+using TimeVault.Infrastructure.Data;
+using TimeVault.Core.Services.Interfaces;
+using TimeVault.Infrastructure.Services;
 using TimeVault.Api.Features.Auth.Mapping;
 using TimeVault.Api.Features.Messages.Mapping;
 using TimeVault.Api.Features.Vaults.Mapping;
 using TimeVault.Api.Infrastructure.Middleware;
-using TimeVault.Core.Services.Interfaces;
-using TimeVault.Infrastructure.Data;
-using TimeVault.Infrastructure.Services;
 
+// Create builder with minimal services
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container
+// Add only essential services
 builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
 
-// Add Database
+// Configure the database context
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        b => b.MigrationsAssembly("TimeVault.Infrastructure")));
 
-// Add MediatR for vertical slice architecture
-builder.Services.AddMediatR(cfg => 
-{
-    cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
-    // Register validation behavior
-    cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
-});
+// Register AutoMapper
+builder.Services.AddAutoMapper(typeof(AuthMappingProfile), typeof(MessagesMappingProfile), typeof(VaultsMappingProfile));
 
-// Add FluentValidation
-builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
-
-// Add AutoMapper with feature-specific profiles
-builder.Services.AddAutoMapper(cfg =>
-{
-    // Register feature-specific mapping profiles
-    cfg.AddProfile<AuthMappingProfile>();
-    cfg.AddProfile<MessagesMappingProfile>();
-    cfg.AddProfile<VaultsMappingProfile>();
-});
-
-// Register Services
+// Register Core Services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IVaultService, VaultService>();
-builder.Services.AddScoped<IKeyVaultService, KeyVaultService>();
-builder.Services.AddScoped<IDrandService, DrandService>();
 builder.Services.AddScoped<IMessageService, MessageService>();
+builder.Services.AddScoped<IDrandService, DrandService>();
+builder.Services.AddScoped<IKeyVaultService, KeyVaultService>();
 
-// Add HttpClient services
-builder.Services.AddHttpClient("DrandClient", client =>
-{
-    client.BaseAddress = new Uri("https://api.drand.sh");
-    client.DefaultRequestHeaders.Add("Accept", "application/json");
+// Register MediatR
+builder.Services.AddMediatR(config => {
+    config.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly());
 });
 
-// Configure JWT Authentication
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key is missing in configuration")))
-        };
-    });
+// Register validation pipeline behavior
+builder.Services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
-// Configure Swagger
-builder.Services.AddEndpointsApiExplorer();
+// Register validators
+builder.Services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
+
+// HTTP clients for external services
+builder.Services.AddHttpClient();
+
+// Configure Swagger in the service configuration
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "TimeVault API",
         Version = "v1",
-        Description = "API for TimeVault - a time-locked message vault with secure storage and retrieval",
-    });
-
-    // Configure Swagger to use JWT Authentication
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer"
-    });
-
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        }
+        Description = "A secure, time-based messaging application API"
     });
 });
 
-// CORS Configuration
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowSpecificOrigins",
-        builder =>
-        {
-            builder.WithOrigins(
-                "http://localhost:3000",
-                "https://timevault.app")
-                .AllowAnyMethod()
-                .AllowAnyHeader()
-                .AllowCredentials();
-        });
-});
+// Log details for troubleshooting
+Console.WriteLine($"Starting TimeVault API in {builder.Environment.EnvironmentName} mode");
+Console.WriteLine($"Current time: {DateTime.UtcNow}");
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-    app.UseDeveloperExceptionPage();
-}
-else
-{
-    app.UseExceptionHandling(); // Custom exception handling middleware
-}
+// Add a bunch of simple endpoints for diagnostic purposes
+app.MapGet("/", () => Results.Text("TimeVault API is running. Navigate to /swagger to access the API documentation.")).WithOpenApi();
+app.MapGet("/health", () => Results.Json(new { 
+    status = "healthy", 
+    timestamp = DateTime.UtcNow
+})).WithOpenApi();
+app.MapGet("/environment", () => Results.Json(new { 
+    env = app.Environment.EnvironmentName,
+    isDevelopment = app.Environment.IsDevelopment(),
+    isProduction = app.Environment.IsProduction(),
+    contentRoot = app.Environment.ContentRootPath,
+    webRoot = app.Environment.WebRootPath
+})).WithOpenApi();
+app.MapGet("/config", () => Results.Json(new { 
+    urls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS"),
+    environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+})).WithOpenApi();
 
-app.UseHttpsRedirection();
-app.UseCors("AllowSpecificOrigins");
+// Configure Swagger middleware
+app.UseSwagger();
+app.UseSwaggerUI(c => {
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "TimeVault API v1");
+});
 
-app.UseAuthentication();
-app.UseAuthorization();
+// Use the custom exception handling middleware to properly handle validation errors
+app.UseExceptionHandling();
 
+// Basic CORS policy to ensure the API is accessible
+app.UseCors(policy => policy
+    .AllowAnyOrigin()
+    .AllowAnyMethod()
+    .AllowAnyHeader());
+
+// Configure routing and endpoints (minimal setup)
+app.UseRouting();
 app.MapControllers();
 
-// Create a default admin user on startup if it doesn't exist
-using (var scope = app.Services.CreateScope())
+// Remove Username column if it exists
+try
 {
-    var services = scope.ServiceProvider;
-    try
+    using (var scope = app.Services.CreateScope())
     {
-        var context = services.GetRequiredService<ApplicationDbContext>();
-
-        // For PostgreSQL, use our custom initialization instead of migrations
-        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-        var scriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "PostgresSchema.sql");
-
-        // If the script exists in the infrastructure project, copy it to the output directory
-        var infrastructureScriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "../../TimeVault.Infrastructure/Data/PostgresSchema.sql");
-        if (File.Exists(infrastructureScriptPath))
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        // Check if the Username column exists
+        bool usernameColumnExists = false;
+        try
         {
-            File.Copy(infrastructureScriptPath, scriptPath, true);
+            // Try to query the column - if it doesn't exist, an exception will be thrown
+            var test = dbContext.Database.ExecuteSqlRaw("SELECT Username FROM \"Users\" LIMIT 1");
+            usernameColumnExists = true;
         }
-
-        if (File.Exists(scriptPath) && !string.IsNullOrEmpty(connectionString))
+        catch
         {
-            // Initialize PostgreSQL database with our script
-            ApplicationDbContext.InitializePostgresDatabase(connectionString, scriptPath);
+            usernameColumnExists = false;
         }
-        else
+        
+        if (usernameColumnExists)
         {
-            // Fallback to regular migrations if script is not found
-            context.Database.Migrate();
+            // Drop the unique index on Username if it exists
+            try
+            {
+                dbContext.Database.ExecuteSqlRaw("DROP INDEX IF EXISTS \"IX_Users_Username\"");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error dropping Username index: {ex.Message}");
+            }
+            
+            // Remove the Username column
+            try
+            {
+                dbContext.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" DROP COLUMN IF EXISTS \"Username\"");
+                Console.WriteLine("Username column removed successfully");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error removing Username column: {ex.Message}");
+            }
         }
-
-        // Seed default admin user
-        var authService = services.GetRequiredService<IAuthService>();
-        await SeedData.InitializeAsync(authService);
-    }
-    catch (Exception ex)
-    {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while initializing the database.");
     }
 }
+catch (Exception ex)
+{
+    Console.WriteLine($"Error during database schema modification: {ex.Message}");
+}
 
+Console.WriteLine("Application startup complete - endpoints are ready");
 app.Run();
 
 // Make Program class accessible for integration tests
 public partial class Program { }
-
-public static class SeedData
-{
-    public static async Task InitializeAsync(IAuthService authService)
-    {
-        // Create admin user if it doesn't exist
-        await authService.CreateAdminUserIfNotExists(
-            "admin@timevault.com",
-            "Admin123!");
-    }
-}

@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS "Users" (
     "Id" UUID PRIMARY KEY,
     "Email" VARCHAR(255) UNIQUE NOT NULL,
-    "PasswordHash" VARCHAR(255) NOT NULL,
+    "PasswordHash" TEXT NOT NULL,
     "FirstName" VARCHAR(100),
     "LastName" VARCHAR(100),
     "IsAdmin" BOOLEAN NOT NULL DEFAULT FALSE,

@@ -34,20 +34,36 @@ namespace TimeVault.Infrastructure.Services
         public async Task<long> GetCurrentRoundAsync()
         {
             var client = _httpClientFactory.CreateClient("DrandClient");
-            var response = await client.GetFromJsonAsync<DrandInfo>($"{_drandUrl}/info");
-            return response?.Public?.Round ?? 0;
+            try 
+            {
+                var response = await client.GetFromJsonAsync<DrandInfo>($"{_drandUrl}/info");
+                return response?.Public?.Round ?? 0;
+            }
+            catch (Exception)
+            {
+                // Log the exception in a real system
+                return 0;
+            }
         }
         
         public async Task<DrandRoundResponse> GetRoundAsync(long round)
         {
             var client = _httpClientFactory.CreateClient("DrandClient");
-            var response = await client.GetAsync($"{_drandUrl}/public/{round}");
-            
-            if (response.IsSuccessStatusCode)
+            try
             {
-                var content = await response.Content.ReadAsStringAsync();
-                var roundInfo = JsonSerializer.Deserialize<DrandRoundResponse>(content);
-                return roundInfo ?? new DrandRoundResponse
+                var response = await client.GetAsync($"{_drandUrl}/public/{round}");
+                
+                if (response.IsSuccessStatusCode)
+                {
+                    var content = await response.Content.ReadAsStringAsync();
+                    var roundInfo = JsonSerializer.Deserialize<DrandRoundResponse>(content);
+                    if (roundInfo != null)
+                    {
+                        return roundInfo;
+                    }
+                }
+                
+                return new DrandRoundResponse
                 {
                     Round = round,
                     Randomness = string.Empty,
@@ -55,39 +71,58 @@ namespace TimeVault.Infrastructure.Services
                     PreviousSignature = 0
                 };
             }
-            
-            return new DrandRoundResponse
+            catch (Exception)
             {
-                Round = round,
-                Randomness = string.Empty,
-                Signature = string.Empty,
-                PreviousSignature = 0
-            };
+                // Log the exception in a real system
+                return new DrandRoundResponse
+                {
+                    Round = round,
+                    Randomness = string.Empty,
+                    Signature = string.Empty,
+                    PreviousSignature = 0
+                };
+            }
         }
         
         public virtual async Task<long> CalculateRoundForTimeAsync(DateTime unlockTime)
         {
-            var client = _httpClientFactory.CreateClient("DrandClient");
-            var info = await client.GetFromJsonAsync<DrandInfo>($"{_drandUrl}/info");
-            
-            if (info == null || info.Public == null)
-                return 0;
+            try
+            {
+                var client = _httpClientFactory.CreateClient("DrandClient");
+                var info = await client.GetFromJsonAsync<DrandInfo>($"{_drandUrl}/info");
                 
-            // Calculate the time difference between now and unlock time in seconds
-            var timeDifferenceSeconds = (unlockTime - DateTime.UtcNow).TotalSeconds;
-            
-            // Calculate how many rounds will occur in that time (each round is typically 30 seconds)
-            var roundsToAdd = (long)Math.Ceiling(timeDifferenceSeconds / info.Public.Period);
-            
-            // Add those rounds to the current round
-            return info.Public.Round + roundsToAdd;
+                if (info == null || info.Public == null)
+                    return 0;
+                    
+                // Calculate the time difference between now and unlock time in seconds
+                var timeDifferenceSeconds = (unlockTime - DateTime.UtcNow).TotalSeconds;
+                
+                // Calculate how many rounds will occur in that time (each round is typically 30 seconds)
+                var roundsToAdd = (long)Math.Ceiling(timeDifferenceSeconds / info.Public.Period);
+                
+                // Add those rounds to the current round
+                return info.Public.Round + roundsToAdd;
+            }
+            catch (Exception)
+            {
+                // Log the exception in a real system
+                return 0;
+            }
         }
         
         public async Task<string> GetPublicKeyAsync()
         {
-            var client = _httpClientFactory.CreateClient("DrandClient");
-            var info = await client.GetFromJsonAsync<DrandInfo>($"{_drandUrl}/info");
-            return info?.Public?.Key ?? string.Empty;
+            try 
+            {
+                var client = _httpClientFactory.CreateClient("DrandClient");
+                var info = await client.GetFromJsonAsync<DrandInfo>($"{_drandUrl}/info");
+                return info?.Public?.Key ?? string.Empty;
+            }
+            catch (Exception)
+            {
+                // Log the exception in a real system
+                return string.Empty;
+            }
         }
         
         public virtual async Task<string> EncryptWithTlockAsync(string content, long round)

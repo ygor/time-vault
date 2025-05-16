@@ -19,10 +19,10 @@ echo -e "${YELLOW}Publishing application...${NC}"
 echo -e "${YELLOW}Building and starting Docker containers...${NC}"
 docker-compose down
 docker-compose build
-docker-compose up -d
+docker-compose up
 
 echo -e "${GREEN}====================================================${NC}"
 echo -e "${GREEN}        TimeVault API deployed successfully${NC}"
 echo -e "${GREEN}====================================================${NC}"
-echo -e "${YELLOW}API URL:${NC} http://localhost:5000"
-echo -e "${YELLOW}Swagger URL:${NC} http://localhost:5000/swagger" 
+echo -e "${YELLOW}API URL:${NC} http://localhost:8080"
+echo -e "${YELLOW}Swagger URL:${NC} http://localhost:8080/swagger" 

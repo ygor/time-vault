@@ -92,7 +92,10 @@ namespace TimeVault.Infrastructure.Services
             // Get the user to extract salt from their data
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
             if (user == null)
-                throw new InvalidOperationException("User not found");
+                throw new InvalidOperationException($"User with ID {userId} not found");
+            
+            if (string.IsNullOrEmpty(user.PasswordHash))
+                throw new InvalidOperationException($"User with ID {userId} has no password hash");
             
             // Use the user's ID and password hash as salt
             // In a production system, we'd use a separate salt stored securely

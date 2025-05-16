@@ -89,8 +89,8 @@ Run integration tests with a PostgreSQL Docker container:
 ## API Documentation
 
 When running locally, API documentation is available at:
-- Swagger UI: `http://localhost:5000/swagger`
-- OpenAPI JSON: `http://localhost:5000/swagger/v1/swagger.json`
+- Swagger UI: `http://localhost:8080/swagger`
+- OpenAPI JSON: `http://localhost:8080/swagger/v1/swagger.json`
 
 ## Deployment
 
@@ -106,7 +106,7 @@ When running locally, API documentation is available at:
    ./deploy-docker.sh
    ```
 
-   The API will be available at http://localhost:5000 and Swagger at http://localhost:5000/swagger.
+   The API will be available at http://localhost:8080 and Swagger at http://localhost:8080/swagger.
 
 ### Azure Deployment
 

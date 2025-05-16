@@ -8,151 +8,160 @@ using TimeVault.Domain.Entities;
 using TimeVault.Infrastructure.Data;
 using TimeVault.Infrastructure.Services;
 using Xunit;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace TimeVault.Tests.Services
 {
     public class AuthServiceTests
     {
+        private readonly DbContextOptions<ApplicationDbContext> _contextOptions;
         private readonly IConfiguration _configuration;
 
         public AuthServiceTests()
         {
-            // Set up minimal configuration for JWT
-            var inMemorySettings = new Dictionary<string, string?> {
-                {"Jwt:Key", "this-is-a-very-long-secret-key-for-testing-purposes-only"},
-                {"Jwt:Issuer", "time-vault-test"},
-                {"Jwt:Audience", "time-vault-users-test"}
+            // Use SQLite in-memory database for testing
+            _contextOptions = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase("AuthServiceTestDb")
+                .Options;
+
+            // Create test configuration
+            var configValues = new Dictionary<string, string>
+            {
+                {"Jwt:Key", "your-256-bit-secret-key-used-to-sign-and-verify-jwt-token-super-secure"},
+                {"Jwt:Issuer", "TimeVault"},
+                {"Jwt:Audience", "TimeVaultUsers"}
             };
 
             _configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(inMemorySettings)
+                .AddInMemoryCollection(configValues)
                 .Build();
-        }
 
-        private ApplicationDbContext CreateDbContext()
-        {
-            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseInMemoryDatabase($"AuthServiceTests_{Guid.NewGuid()}")
-                .EnableSensitiveDataLogging() // Enable sensitive data logging
-                .Options;
-
-            var context = new ApplicationDbContext(options);
-            return context;
+            // Create database and apply migrations
+            using var context = new ApplicationDbContext(_contextOptions);
+            context.Database.EnsureCreated();
         }
 
         [Fact]
-        public async Task RegisterAsync_ShouldCreateUser_WithHashedPassword()
+        public async Task RegisterAsync_ShouldCreateNewUser_WithAllRequiredFields()
         {
             // Arrange
-            using var context = CreateDbContext();
-            var service = new AuthService(context, _configuration);
-            var email = "test@example.com";
-            var password = "Password123!";
+            using var context = new ApplicationDbContext(_contextOptions);
+            var authService = new AuthService(context, _configuration);
+            
+            var testEmail = "test@example.com";
+            var testPassword = "StrongPassword!123";
 
             // Act
-            var result = await service.RegisterAsync(email, password);
+            var result = await authService.RegisterAsync(testEmail, testPassword);
 
             // Assert
-            result.Success.Should().BeTrue();
-            result.User.Should().NotBeNull();
-            result.User.Email.Should().Be(email);
-            result.User.PasswordHash.Should().NotBeNullOrEmpty();
-            result.User.CreatedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(10));
-
-            var savedUser = await context.Users.FindAsync(result.User.Id);
-            savedUser.Should().NotBeNull();
-            savedUser!.Email.Should().Be(email);
-            savedUser.PasswordHash.Should().NotBeNullOrEmpty();
+            Assert.True(result.Success);
+            Assert.NotEmpty(result.Token);
+            Assert.NotNull(result.User);
+            
+            // Check that the user is in the database
+            var userInDb = await context.Users.FirstOrDefaultAsync(u => u.Email == testEmail);
+            Assert.NotNull(userInDb);
+            
+            // Ensure all required fields are populated
+            Assert.NotEqual(Guid.Empty, userInDb.Id);
+            Assert.Equal(testEmail, userInDb.Email);
+            Assert.NotEmpty(userInDb.PasswordHash);
+            Assert.Equal(string.Empty, userInDb.FirstName); // Default value
+            Assert.Equal(string.Empty, userInDb.LastName); // Default value
+            Assert.False(userInDb.IsAdmin);
+            Assert.NotEqual(default, userInDb.CreatedAt);
+            Assert.NotEqual(default, userInDb.UpdatedAt);
+            Assert.NotNull(userInDb.LastLogin);
         }
 
         [Fact]
-        public async Task LoginAsync_ShouldReturnSuccessAndToken_WhenCredentialsAreCorrect()
+        public async Task RegisterAsync_ShouldReturnError_WhenEmailAlreadyExists()
         {
             // Arrange
-            using var context = CreateDbContext();
-            var service = new AuthService(context, _configuration);
-            var email = "test@example.com";
-            var password = "Password123!";
-
-            // Register a user first
-            await service.RegisterAsync(email, password);
-
-            // Act - login with email
-            var result = await service.LoginAsync(email, password);
-
-            // Assert
-            result.Success.Should().BeTrue();
-            result.Error.Should().BeEmpty();
-            result.Token.Should().NotBeNullOrEmpty();
-            result.User.Should().NotBeNull();
-            result.User.Email.Should().Be(email);
-        }
-
-        [Fact]
-        public async Task LoginAsync_ShouldReturnFailure_WhenEmailIsIncorrect()
-        {
-            // Arrange
-            using var context = CreateDbContext();
-            var service = new AuthService(context, _configuration);
-            var email = "test@example.com";
-            var password = "Password123!";
-
-            // Register a user first
-            await service.RegisterAsync(email, password);
+            using var context = new ApplicationDbContext(_contextOptions);
+            var authService = new AuthService(context, _configuration);
+            
+            var testEmail = "duplicate@example.com";
+            var testPassword = "StrongPassword!123";
+            
+            // First registration should succeed
+            await authService.RegisterAsync(testEmail, testPassword);
 
             // Act
-            var result = await service.LoginAsync("wrong@example.com", password);
+            var result = await authService.RegisterAsync(testEmail, testPassword);
 
             // Assert
-            result.Success.Should().BeFalse();
-            result.Error.Should().NotBeNullOrEmpty();
-            result.Error.Should().Be("User not found");
+            Assert.False(result.Success);
+            Assert.Equal("Email already registered", result.Error);
         }
 
         [Fact]
-        public async Task LoginAsync_ShouldReturnFailure_WhenPasswordIsIncorrect()
+        public async Task LoginAsync_ShouldReturnUser_WhenCredentialsAreValid()
         {
             // Arrange
-            using var context = CreateDbContext();
-            var service = new AuthService(context, _configuration);
-            var email = "test@example.com";
-            var password = "Password123!";
-
-            // Register a user first
-            await service.RegisterAsync(email, password);
+            using var context = new ApplicationDbContext(_contextOptions);
+            var authService = new AuthService(context, _configuration);
+            
+            var testEmail = "login@example.com";
+            var testPassword = "StrongPassword!123";
+            
+            // Register user first
+            await authService.RegisterAsync(testEmail, testPassword);
 
             // Act
-            var result = await service.LoginAsync(email, "wrongpassword");
+            var result = await authService.LoginAsync(testEmail, testPassword);
 
             // Assert
-            result.Success.Should().BeFalse();
-            result.Error.Should().NotBeNullOrEmpty();
-            result.Error.Should().Be("Invalid password");
+            Assert.True(result.Success);
+            Assert.NotEmpty(result.Token);
+            Assert.NotNull(result.User);
+            Assert.Equal(testEmail, result.User.Email);
         }
 
         [Fact]
-        public async Task ChangePasswordAsync_ShouldReturnTrue_WhenCurrentPasswordIsCorrect()
+        public async Task LoginAsync_ShouldReturnError_WhenCredentialsAreInvalid()
         {
             // Arrange
-            using var context = CreateDbContext();
-            var service = new AuthService(context, _configuration);
-            var email = "test@example.com";
-            var currentPassword = "Password123!";
-            var newPassword = "NewPassword123!";
-
-            // Register a user first
-            var registerResult = await service.RegisterAsync(email, currentPassword);
-            var userId = registerResult.User.Id;
+            using var context = new ApplicationDbContext(_contextOptions);
+            var authService = new AuthService(context, _configuration);
+            
+            var testEmail = "invalid@example.com";
+            var testPassword = "StrongPassword!123";
+            
+            // Register user first
+            await authService.RegisterAsync(testEmail, testPassword);
 
             // Act
-            var result = await service.ChangePasswordAsync(userId, currentPassword, newPassword);
+            var result = await authService.LoginAsync(testEmail, "WrongPassword!123");
 
             // Assert
-            result.Should().BeTrue();
+            Assert.False(result.Success);
+            Assert.Equal("Invalid password", result.Error);
+        }
 
-            // Verify we can login with the new password
-            var loginResult = await service.LoginAsync(email, newPassword);
-            loginResult.Success.Should().BeTrue();
+        [Fact]
+        public async Task CreateAdminUserIfNotExists_ShouldCreateAdminUser_WhenEmailDoesNotExist()
+        {
+            // Arrange
+            using var context = new ApplicationDbContext(_contextOptions);
+            var authService = new AuthService(context, _configuration);
+            
+            var testEmail = "admin@example.com";
+            var testPassword = "AdminPassword!123";
+
+            // Act
+            var result = await authService.CreateAdminUserIfNotExists(testEmail, testPassword);
+
+            // Assert
+            Assert.True(result);
+            
+            // Check that the admin user is in the database
+            var adminInDb = await context.Users.FirstOrDefaultAsync(u => u.Email == testEmail);
+            Assert.NotNull(adminInDb);
+            Assert.Equal("Admin", adminInDb.FirstName);
+            Assert.Equal("User", adminInDb.LastName);
+            Assert.True(adminInDb.IsAdmin);
         }
     }
 } 

@@ -37,6 +37,9 @@ namespace TimeVault.Infrastructure.Data
                 .Property(u => u.LastName)
                 .IsRequired(false);
 
+            // Note: Username field is no longer part of the model but may exist in the database 
+            // This will be handled through migrations
+
             // Configure the Vault entity
             modelBuilder.Entity<Vault>()
                 .HasOne(v => v.Owner)
